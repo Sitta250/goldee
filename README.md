@@ -13,7 +13,7 @@ Real-time Thai gold price tracker. Fetches live prices from สมาคมค�
 | ORM | Prisma 5 |
 | Styling | Tailwind CSS |
 | Charts | Recharts |
-| Deployment | Vercel |
+| Deployment | Vercel + external scheduler (recommended), or Railway |
 | Data source | สมาคมค้าทองคำ YGTA JSON API |
 
 ---
@@ -174,7 +174,20 @@ All parsing must stay server-side only. Never import provider files in client co
 
 ---
 
-## Vercel Deployment
+## Deployment
+
+### Cheapest reliable option for this codebase
+
+For this exact Next.js + Prisma + Neon setup, the cheapest reliable 5-minute path is:
+
+- **Vercel + external scheduler + Neon**
+
+Why this is the recommendation:
+- Vercel Hobby does **not** support a 5-minute cron schedule
+- Railway is reliable, but is typically a higher fixed monthly cost than Vercel Hobby + external scheduler
+- The app already has a host-agnostic secure endpoint: `/api/scheduler/fetch`
+
+### Recommended setup: Vercel + external scheduler + Neon
 
 ### Step 1 — Push to GitHub
 
@@ -229,25 +242,57 @@ DATABASE_URL_UNPOOLED="<direct-url>" \
 npm run db:seed
 ```
 
-The cron job will populate real price data automatically within 5 minutes; seed only if you want articles and FAQ items to appear immediately.
+The scheduler job will populate real price data automatically within 5 minutes; seed only if you want articles and FAQ items to appear immediately.
+
+### Step 7 — Configure external scheduler (every 5 minutes)
+
+Use **GitHub Actions** as the default scheduler for Vercel Hobby.
+
+This repo includes `.github/workflows/scheduler-fetch.yml` with:
+- `schedule`: every 5 minutes (`*/5 * * * *`)
+- `workflow_dispatch`: manual run support
+- `GET` to `SCHEDULER_URL` with `Authorization: Bearer ${CRON_SECRET}`
+- explicit failure on non-200 responses
+- response body logging for debugging
+
+#### Add required GitHub secrets
+
+In GitHub: **Repository → Settings → Secrets and variables → Actions → New repository secret**
+
+Add:
+- `SCHEDULER_URL` = `https://your-domain.com/api/scheduler/fetch`
+- `CRON_SECRET` = same value as Vercel `CRON_SECRET`
+
+#### Enable the workflow
+
+- Commit and push `.github/workflows/scheduler-fetch.yml` to your default branch
+- In GitHub: **Actions** tab → open **Scheduler Fetch** workflow
+- Confirm scheduled runs appear (GitHub may take a few minutes before first scheduled execution)
+
+#### Test manual dispatch
+
+- In GitHub: **Actions → Scheduler Fetch → Run workflow**
+- Choose branch (usually `main`) and click **Run workflow**
+- Open the run logs:
+  - verify `HTTP status: 200`
+  - inspect printed JSON response body (`inserted` or `skipped`)
 
 ---
 
-## Cron Setup
+## Scheduler Setup (5-minute fetch)
 
-Configured in `vercel.json`:
+- `/api/scheduler/fetch` is the canonical, host-agnostic endpoint
+- `/api/cron/fetch-gold-price` remains supported as a legacy path
+- Auth uses: `Authorization: Bearer <CRON_SECRET>`
+- 5-minute schedule (`*/5 * * * *`) is fully compatible with this ingestion flow
+- For Vercel Hobby, use an external scheduler (GitHub Actions recommended)
 
-```json
-{
-  "crons": [{ "path": "/api/cron/fetch-gold-price", "schedule": "*/5 * * * *" }]
-}
+**Verify scheduler runs:**
+Trigger manually:
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" \
+     https://your-domain.com/api/scheduler/fetch
 ```
-
-- Runs every 5 minutes, **production deployments only**
-- Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically
-- The endpoint validates the secret and returns 401 on mismatch
-
-**Verify it's running:** Vercel Dashboard → your project → **Cron Jobs** tab shows schedule, last run time, and last result.
 
 **Manual trigger in production:**
 ```bash
@@ -312,10 +357,11 @@ Add your image CDN to `next.config.ts`:
 remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
 ```
 
-**Cron not running on Vercel**
-- Confirm `vercel.json` is committed (not gitignored) and the latest deploy includes it
-- Check **Vercel Dashboard → Cron Jobs** tab
-- `CRON_SECRET` must be set in Vercel environment variables
+**Scheduler not running every 5 minutes**
+- Confirm external scheduler frequency is `*/5 * * * *`
+- Confirm scheduler URL is `https://your-domain.com/api/scheduler/fetch`
+- Confirm header is `Authorization: Bearer <CRON_SECRET>`
+- `CRON_SECRET` must match Vercel environment variables
 
 **Chart shows old data after price update**
 The history API route has a 4-minute `Cache-Control`. Wait up to 4 minutes or force a new deploy to invalidate the edge cache.
@@ -339,7 +385,8 @@ app/
   robots.ts                       /robots.txt
   sitemap.ts                      /sitemap.xml
   api/
-    cron/fetch-gold-price/        Vercel Cron endpoint (every 5 min, production)
+    scheduler/fetch/              Canonical host-agnostic scheduler endpoint
+    cron/fetch-gold-price/        Legacy cron endpoint (kept for compatibility)
     admin/run-fetch/              Manual trigger — auth-gated, any environment
     prices/history/               Client chart data (cached 4 min at edge)
     gold/trigger/                 Dev-only trigger — blocked in production

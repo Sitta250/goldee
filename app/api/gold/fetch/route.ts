@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
+import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
 // ─── Internal gold price fetch + store ───────────────────────────────────────
 // Called only by /api/cron. Not meant to be called directly from the browser.
@@ -10,10 +11,7 @@ import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 
 export async function POST(req: NextRequest) {
   // ── Security check ──────────────────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization')
-  const secret     = process.env.CRON_SECRET
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

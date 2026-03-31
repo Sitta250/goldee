@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
+import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
 // ─── Legacy cron path — /api/cron ────────────────────────────────────────────
 // Kept for backwards compatibility. The canonical cron path is now:
@@ -9,10 +10,8 @@ import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 
 export async function GET(req: NextRequest) {
   const start  = Date.now()
-  const secret = process.env.CRON_SECRET
-  const auth   = req.headers.get('authorization')
 
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }
 

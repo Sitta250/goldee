@@ -1,31 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
+import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
-// ─── Vercel Cron endpoint — /api/cron/fetch-gold-price ───────────────────────
+// ─── Cron endpoint (legacy path) — /api/cron/fetch-gold-price ─────────────────
 //
-// Triggered automatically by Vercel every 5 minutes in production.
-// Configured in vercel.json:
-//   { "path": "/api/cron/fetch-gold-price", "schedule": "*/5 * * * *" }
-//
-// ⚠️  Vercel Cron only runs on Production deployments.
-//     Preview deployments and localhost do NOT receive cron calls.
-//     Use /api/admin/run-fetch (with Authorization header) for manual testing.
-//
-// Security:
-//   Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` on every
-//   cron invocation. We verify it here so the endpoint cannot be called without
-//   the secret — even if someone discovers the URL.
+// Kept for backwards compatibility.
+// Canonical host-agnostic endpoint: /api/scheduler/fetch
 //
 // Response shape (all cases):
 //   { ok, status, timestamp, durationMs, ...result-specific fields }
 
 export async function GET(req: NextRequest) {
   const start  = Date.now()
-  const secret = process.env.CRON_SECRET
-  const auth   = req.headers.get('authorization')
 
   // ── Auth ────────────────────────────────────────────────────────────────────
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!isAuthorizedCronRequest(req)) {
     console.warn('[cron/fetch-gold-price] Unauthorized request rejected')
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }

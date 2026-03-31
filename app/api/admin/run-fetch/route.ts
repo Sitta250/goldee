@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
+import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
 // ─── Manual ingestion trigger — /api/admin/run-fetch ─────────────────────────
 //
@@ -22,18 +23,16 @@ import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 
 export async function GET(req: NextRequest) {
   const start  = Date.now()
-  const secret = process.env.CRON_SECRET
-  const auth   = req.headers.get('authorization')
 
   // ── Auth ────────────────────────────────────────────────────────────────────
-  if (!secret) {
+  if (!process.env.CRON_SECRET) {
     return NextResponse.json(
       { ok: false, error: 'CRON_SECRET is not set in environment variables.' },
       { status: 500 },
     )
   }
 
-  if (auth !== `Bearer ${secret}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }
 

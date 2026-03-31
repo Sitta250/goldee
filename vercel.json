@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/fetch-gold-price",
-      "schedule": "*/5 * * * *"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
