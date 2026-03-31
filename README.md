@@ -1,20 +1,30 @@
 # Goldee — ราคาทองวันนี้
 
-Consumer-facing Thai gold price website. Mobile-first, calm, and clear.
-
-**Stack:** Next.js 15 · TypeScript · Tailwind CSS · Prisma · Neon PostgreSQL · Recharts · Vercel
+Real-time Thai gold price tracker. Fetches live prices from สมาคมค้าทองคำ (YGTA), stores them every 5 minutes, and displays them on a clean consumer-facing website.
 
 ---
 
-## Prerequisites
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router, RSC) |
+| Database | PostgreSQL via [Neon](https://neon.tech) |
+| ORM | Prisma 5 |
+| Styling | Tailwind CSS |
+| Charts | Recharts |
+| Deployment | Vercel |
+| Data source | สมาคมค้าทองคำ YGTA JSON API |
+
+---
+
+## Local Setup
+
+### Prerequisites
 
 - Node.js 20+
-- pnpm / npm / yarn
-- A [Neon](https://neon.tech) PostgreSQL database (free tier works)
-
----
-
-## Local Development Setup
+- A [Neon](https://neon.tech) PostgreSQL project (free tier works)
+- npm
 
 ### 1. Clone and install
 
@@ -24,227 +34,350 @@ cd goldee
 npm install
 ```
 
-### 2. Configure environment variables
+### 2. Create your `.env` file
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Open `.env.local` and fill in:
+Open `.env` and set the required values:
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | Neon pooled connection string |
-| `DATABASE_URL_UNPOOLED` | Neon direct connection (for migrations) |
-| `CRON_SECRET` | Random secret for cron route auth — `openssl rand -hex 32` |
-| `GOLD_API_URL` | Your gold price data source URL |
-| `GOLD_API_KEY` | API key if required |
-| `NEXT_PUBLIC_SITE_URL` | Full URL of your site (used for OG tags) |
+```env
+# From your Neon project dashboard → Connection Details
+# Use the POOLED string (port 6543) for DATABASE_URL
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:6543/neondb?sslmode=require&pgbouncer=true"
 
-### 3. Set up the database
+# Use the DIRECT / unpooled string (port 5432) for migrations
+DATABASE_URL_UNPOOLED="postgresql://USER:PASSWORD@HOST:5432/neondb?sslmode=require"
+
+# Generate with: openssl rand -hex 32
+CRON_SECRET="your-random-secret-here"
+
+# Use 'mock' for local dev — no external network calls
+GOLD_PROVIDER="mock"
+
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+NEXT_PUBLIC_SITE_NAME="Goldee"
+```
+
+> **Why two connection strings?**
+> Neon provides a pooled URL (port 6543, via PgBouncer) for runtime queries, and a direct URL (port 5432) for schema migrations. Use the pooled one for `DATABASE_URL` and the direct one for `DATABASE_URL_UNPOOLED`.
+
+---
+
+## Database Migration
+
+### ISP port-blocking note
+
+Many home ISPs block outbound port 5432. Prisma migrations connect via `DATABASE_URL_UNPOOLED` (port 5432).
+
+**If you see `P1001: Can't reach database server at ep-xxx:5432`:**
+Switch to a mobile hotspot for migration and seed commands, then switch back. Regular `npm run dev` (port 6543) is unaffected.
+
+### Run migrations
 
 ```bash
-# Generate Prisma client
-npm run db:generate
-
-# Run migrations (creates tables in Neon)
-npm run db:migrate
+npx prisma migrate dev
 ```
 
-### 4. Start the dev server
+Creates all tables and indexes. Run once on initial setup; run again after any schema changes.
+
+### Seed the database
+
+```bash
+npm run db:seed
+```
+
+Populates the database with:
+- 168 mock price snapshots (one week of 5-minute intervals)
+- 1 daily summary card
+- 3 sample articles
+- 5 FAQ items
+- 1 SiteSettings row
+
+After seeding, every page shows real-looking data.
+
+### Inspect data (optional)
+
+```bash
+npm run db:studio
+```
+
+Opens Prisma Studio at `http://localhost:5555`.
+
+---
+
+## Running in Development
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+App runs at `http://localhost:3000`.
+
+`GOLD_PROVIDER=mock` (the default) generates deterministic fake prices locally — no external calls, no hotspot needed. Prices vary by time of day so the chart always has data.
+
+### Test the ingestion pipeline
+
+Dev-only trigger (no auth required):
+```bash
+curl http://localhost:3000/api/gold/trigger
+```
+
+Admin trigger (works in all environments, requires `CRON_SECRET`):
+```bash
+curl -H "Authorization: Bearer <your-CRON_SECRET>" \
+     http://localhost:3000/api/admin/run-fetch
+```
+
+Expected response when a new price is inserted:
+```json
+{ "ok": true, "status": "inserted", "snapshotId": "...", "barSell": 47500, "durationMs": 85 }
+```
+
+Expected response when price is unchanged (duplicate):
+```json
+{ "ok": true, "status": "skipped", "reason": "All four prices match the most recent snapshot" }
+```
 
 ---
 
-## Database Commands
+## Gold Price Source Integration
 
-| Command | Description |
-|---|---|
-| `npm run db:generate` | Regenerate Prisma client after schema changes |
-| `npm run db:migrate` | Create and run a new migration |
-| `npm run db:push` | Push schema without migration (dev only) |
-| `npm run db:studio` | Open Prisma Studio (GUI for the DB) |
+### Mock mode (default)
+
+`GOLD_PROVIDER=mock` — safe for development and CI. Prices are deterministic per 5-minute bucket so the deduplication logic behaves realistically.
+
+### Real YGTA data locally
+
+To receive real prices from สมาคมค้าทองคำ on your local machine, add both to `.env`:
+
+```env
+GOLD_PROVIDER="ygta"
+GOLD_API_URL="https://www.goldtraders.or.th/UpdatePriceList.aspx"
+```
+
+> **Dev fallback:** If `GOLD_PROVIDER=ygta` but `GOLD_API_URL` is not set, the app automatically falls back to MockProvider in development and logs a warning. In production, the hardcoded endpoint is always used.
+
+### If YGTA changes their API format
+
+All field name aliases and the endpoint URL are isolated at the top of `lib/ingestion/providers/ygta.provider.ts` in `FIELD_ALIASES` and `YGTA_DEFAULT_URL`. Update those constants — no logic changes needed. All parsing helpers are exported so they can be unit-tested without hitting the network.
+
+### Adding a new provider
+
+1. Create `lib/ingestion/providers/your-source.provider.ts`
+2. Implement the `GoldPriceProvider` interface (`lib/ingestion/types.ts`)
+3. Register it in `lib/ingestion/providers/index.ts`
+4. Set `GOLD_PROVIDER=your-source` in `.env`
+
+All parsing must stay server-side only. Never import provider files in client components.
+
+---
+
+## Vercel Deployment
+
+### Step 1 — Push to GitHub
+
+```bash
+git add .
+git commit -m "production deployment"
+git push origin main
+```
+
+### Step 2 — Import in Vercel
+
+1. [vercel.com](https://vercel.com) → **Add New → Project**
+2. Import your GitHub repository
+3. Framework: **Next.js** (auto-detected)
+4. Click **Deploy** — the first deploy may fail until env vars are set
+
+### Step 3 — Set environment variables
+
+Vercel → your project → **Settings → Environment Variables**:
+
+| Variable | Value | Note |
+|---|---|---|
+| `DATABASE_URL` | Neon pooled URL (port 6543) | Runtime queries |
+| `DATABASE_URL_UNPOOLED` | Neon direct URL (port 5432) | Migrations only |
+| `CRON_SECRET` | Random 32-byte hex string | Must match your local `.env` |
+| `GOLD_PROVIDER` | `ygta` | Use `mock` for preview deployments |
+| `GOLD_API_URL` | `https://www.goldtraders.or.th/UpdatePriceList.aspx` | YGTA endpoint |
+| `NEXT_PUBLIC_SITE_URL` | `https://your-domain.vercel.app` | Used in sitemap and OG metadata |
+| `NEXT_PUBLIC_SITE_NAME` | `Goldee` | |
+
+Set all variables for **Production** environment. For **Preview** deployments, set `GOLD_PROVIDER=mock` to avoid sending real traffic from preview branches.
+
+### Step 4 — Redeploy
+
+After setting env vars: **Deployments → ⋯ → Redeploy**
+
+### Step 5 — Run production migrations
+
+From your local machine (use hotspot if port 5432 is blocked):
+
+```bash
+DATABASE_URL_UNPOOLED="<your-neon-direct-url>" npx prisma migrate deploy
+```
+
+`migrate deploy` applies pending migrations non-destructively — safe for production.
+
+### Step 6 — Seed production (optional, first deploy only)
+
+```bash
+DATABASE_URL="<pooled-url>" \
+DATABASE_URL_UNPOOLED="<direct-url>" \
+npm run db:seed
+```
+
+The cron job will populate real price data automatically within 5 minutes; seed only if you want articles and FAQ items to appear immediately.
+
+---
+
+## Cron Setup
+
+Configured in `vercel.json`:
+
+```json
+{
+  "crons": [{ "path": "/api/cron/fetch-gold-price", "schedule": "*/5 * * * *" }]
+}
+```
+
+- Runs every 5 minutes, **production deployments only**
+- Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically
+- The endpoint validates the secret and returns 401 on mismatch
+
+**Verify it's running:** Vercel Dashboard → your project → **Cron Jobs** tab shows schedule, last run time, and last result.
+
+**Manual trigger in production:**
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" \
+     https://your-domain.vercel.app/api/admin/run-fetch
+```
+
+---
+
+## Data Storage & Scaling
+
+### How deduplication works
+
+Before inserting, the ingestion pipeline compares incoming prices against the most recent snapshot:
+- If all four prices match (and announcement numbers match when both are present) → no new row; `lastSeenAt` is updated on the existing row
+- If any price differs OR the announcement number changed → new row inserted
+
+YGTA announces prices roughly twice per trading day. During stable periods, most 5-minute cron runs produce zero new rows. The `fetchedAt → lastSeenAt` window on each row records exactly how long that price was valid.
+
+### Retention policy (planned, not yet implemented)
+
+At ~2–24 new rows per trading day, the table grows slowly. When it becomes large:
+
+| Data age | Recommended granularity | Action |
+|---|---|---|
+| < 30 days | 5-minute (current) | Keep all rows |
+| 30 days – 1 year | Hourly | Aggregate → delete raw rows |
+| > 1 year | Daily | Aggregate → delete hourly rows |
+
+The queries in `lib/queries/history.ts` are written for this path:
+- `getHistoryChartData()` downsamples to ≤200 points regardless of row count
+- When you build an hourly/daily aggregate table, replace the `findMany` body for long ranges (`'6M'`, `'1Y'`, `'All'`) without changing the output type (`HistoryChartPoint[]`)
+
+### What is never stored
+
+- Raw API response bodies — `rawPayload` column is always NULL
+- User sessions, page views, or click events
+- Any personal or identifying data
+
+---
+
+## Troubleshooting
+
+**`P1001: Can't reach database server at :5432`**
+Your ISP blocks port 5432. Use a mobile hotspot for `prisma migrate dev` and `db:seed`. Normal dev (`npm run dev`) uses port 6543 and is unaffected.
+
+**`Unknown GOLD_PROVIDER`**
+`GOLD_PROVIDER` is missing from `.env`. Add `GOLD_PROVIDER="mock"`.
+
+**`CRON_SECRET is not set`**
+Add `CRON_SECRET="your-secret"` to `.env`. Required by `/api/admin/run-fetch` and the cron endpoint.
+
+**Pages show empty states after deploy**
+The DB has no snapshots. Either run `db:seed` or wait for the first cron run, or manually trigger:
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" https://your-domain.com/api/admin/run-fetch
+```
+
+**Article cover images not loading**
+Add your image CDN to `next.config.ts`:
+```ts
+remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
+```
+
+**Cron not running on Vercel**
+- Confirm `vercel.json` is committed (not gitignored) and the latest deploy includes it
+- Check **Vercel Dashboard → Cron Jobs** tab
+- `CRON_SECRET` must be set in Vercel environment variables
+
+**Chart shows old data after price update**
+The history API route has a 4-minute `Cache-Control`. Wait up to 4 minutes or force a new deploy to invalidate the edge cache.
+
+**TypeScript errors after `prisma migrate dev`**
+Run `npm run db:generate` to regenerate the Prisma client types.
 
 ---
 
 ## Project Structure
 
 ```
-goldee/
-├── app/                    # Next.js App Router pages and API routes
-│   ├── layout.tsx          # Root layout with Header, Footer, ad slots
-│   ├── page.tsx            # Homepage
-│   ├── history/            # Price history page
-│   ├── calculator/         # Gold value calculator
-│   ├── articles/           # Article listing + single article
-│   ├── about/              # About + methodology
-│   └── api/
-│       ├── cron/           # Vercel cron endpoint (every 5 min)
-│       ├── gold/fetch/     # Internal: fetch + store gold price
-│       └── prices/history/ # Chart data for client-side timeframe switching
-│
-├── components/
-│   ├── ads/                # Ad slot placeholders (AdBanner, AdRectangle, etc.)
-│   ├── articles/           # Article card, grid, body renderer
-│   ├── calculator/         # GoldCalculator (client), CalculatorPreview (client)
-│   ├── chart/              # TrendChart (client) + TimeframeSelector (client)
-│   ├── home/               # DailySummaryCard, FaqSection
-│   ├── layout/             # Header, Footer, Container, MobileNav
-│   ├── price/              # PriceHero, PriceCard, PriceChange, LastUpdated, PriceTable
-│   └── ui/                 # Badge, SectionHeading, Divider, LoadingSkeleton
-│
-├── lib/
-│   ├── db.ts               # Prisma singleton
-│   ├── gold/               # fetcher.ts (source abstraction) + transformer.ts
-│   ├── queries/            # prices.ts + articles.ts (DB query functions)
-│   └── utils/              # format.ts (currency/date) + trend.ts (calculations)
-│
-├── prisma/
-│   └── schema.prisma       # DB schema (GoldPriceSnapshot, Article, DailySummary)
-│
-├── types/
-│   ├── gold.ts             # TypeScript interfaces for price data
-│   └── article.ts          # TypeScript interfaces for articles
-│
-└── vercel.json             # Cron schedule: every 5 minutes
+app/
+  page.tsx                        Homepage — live prices, chart, articles, FAQ
+  history/page.tsx                Price history with timeframe filters
+  calculator/page.tsx             Gold value calculator
+  articles/page.tsx               Article listing with category filter
+  articles/[slug]/page.tsx        Article detail with related articles
+  about/page.tsx                  About / methodology page
+  not-found.tsx                   Custom 404
+  robots.ts                       /robots.txt
+  sitemap.ts                      /sitemap.xml
+  api/
+    cron/fetch-gold-price/        Vercel Cron endpoint (every 5 min, production)
+    admin/run-fetch/              Manual trigger — auth-gated, any environment
+    prices/history/               Client chart data (cached 4 min at edge)
+    gold/trigger/                 Dev-only trigger — blocked in production
+    gold/fetch/                   Internal fetch+persist — auth-gated POST
+    cron/                         Legacy cron path — kept for compatibility
+
+lib/
+  db.ts                           Prisma singleton (hot-reload safe)
+  ingestion/
+    ingestion.service.ts          Main pipeline: fetch → validate → dedupe → persist
+    providers/
+      ygta.provider.ts            YGTA real data, defensive JSON parsing
+      mock.provider.ts            Deterministic fake prices for dev/CI
+      index.ts                    Provider registry + dev fallback
+    validate.ts                   Price range and spread validation
+    dedupe.ts                     Duplicate detection, lastSeenAt update
+    persist.ts                    DB insert
+    retry.ts                      Exponential backoff wrapper
+    types.ts                      NormalizedGoldPrice, GoldPriceProvider interfaces
+  queries/                        Typed server-side Prisma query functions
+  utils/
+    format.ts                     Thai locale number/date formatters
+    trend.ts                      Price change calculation, gold value formula
+    metadata.ts                   Shared OG + Twitter Card metadata builder
+
+components/
+  layout/                         Header, Footer, Container
+  price/                          PriceHero, LastUpdated
+  chart/                          TrendChart (client), TimeframeSelector
+  history/                        HistoryChart (client), StatCards, HistoryTable
+  calculator/                     GoldCalculator (client), CalculatorPreview
+  articles/                       ArticleGrid, FeaturedArticleCard, ArticleBody
+  ads/                            AdBanner, AdRectangle, AdSidebar, AdFooter
+  home/                           DailySummaryCard, FaqSection
+  ui/                             Badge, Divider, SectionHeading, ContentSection
+
+types/                            Shared TypeScript interfaces
+prisma/
+  schema.prisma                   Database schema with indexes
+  seed.ts                         Development seed data
 ```
-
----
-
-## Key Design Decisions
-
-### Server components by default
-All pages are server components. Only these components are `'use client'`:
-- `TrendChart` — Recharts requires browser APIs
-- `TimeframeSelector` — user interaction state
-- `GoldCalculator` — real-time calculation state
-- `CalculatorPreview` — real-time calculation state
-- `MobileNav` — menu toggle state
-
-### Data source abstraction
-The provider system in `lib/ingestion/providers/` controls which gold price source is used.
-Set `GOLD_PROVIDER=mock` (default) for local dev, or `GOLD_PROVIDER=ygta` for production.
-To add a new source: implement `GoldPriceProvider`, register it in `providers/index.ts`.
-
-### Cron flow
-```
-Vercel Cron (every 5 min)
-  → GET /api/cron/fetch-gold-price   ← Authorization: Bearer <CRON_SECRET>
-  → ingestGoldPrice()
-      ├─ getActiveProvider().fetchLatestPrice()   (with 3× retry)
-      ├─ validateAndNormalize()                   (throws ValidationError on bad data)
-      ├─ checkDuplicate()
-      │     duplicate → touchLastSeenAt()  → return 'skipped'
-      │     new price → insertSnapshot()   → return 'inserted'
-      └─ upsertSourceStatus()                     (always — records ok/error)
-```
-
-⚠️ **Vercel Cron only runs on Production deployments.**
-Preview deployments do not receive cron calls. Use the admin endpoint for manual testing.
-
-### Ad slots
-Four named placeholder components. Replace the `<div>` contents with your ad network script. Sizes are documented in each file.
-
----
-
-## Deployment to Vercel
-
-### 1. Push to GitHub and import into Vercel
-
-1. Push your repo to GitHub
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import the repo
-3. Vercel auto-detects Next.js — no build config needed
-
-### 2. Set environment variables in Vercel
-
-In your Vercel project → **Settings → Environment Variables**, add:
-
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | ✅ | Neon pooled connection string |
-| `DATABASE_URL_UNPOOLED` | ✅ | Neon direct connection (migrations only) |
-| `CRON_SECRET` | ✅ | Random secret — `openssl rand -hex 32` |
-| `GOLD_PROVIDER` | ✅ | `mock` for now, `ygta` when implemented |
-| `NEXT_PUBLIC_SITE_URL` | ✅ | `https://yourdomain.vercel.app` |
-| `GOLD_API_URL` | when live | Confirmed gold price API endpoint |
-| `GOLD_API_KEY` | when live | API key if the source requires one |
-
-### 3. Deploy
-
-Click **Deploy**. Vercel reads `vercel.json` and registers the cron job automatically.
-
-### 4. Verify cron is running
-
-- Vercel Dashboard → your project → **Cron Jobs** tab
-- Each execution appears with its status, duration, and response body
-- Expect `{ "ok": true, "status": "inserted" | "skipped", "durationMs": ... }`
-
-### 5. Manual trigger (any environment)
-
-To fire one ingestion cycle without waiting for cron:
-
-```bash
-# Local dev
-curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
-     http://localhost:3000/api/admin/run-fetch
-
-# Production (e.g. after an outage)
-curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
-     https://yourdomain.vercel.app/api/admin/run-fetch
-```
-
----
-
-## Local Development — Triggering Ingestion Manually
-
-Two options during local dev:
-
-**Option A — No auth required (dev only, blocked in production):**
-```bash
-# Just open in browser or curl — no token needed
-curl http://localhost:3000/api/gold/trigger
-```
-
-**Option B — Same endpoint as production admin (requires CRON_SECRET in .env.local):**
-```bash
-curl -H "Authorization: Bearer $(grep CRON_SECRET .env.local | cut -d= -f2 | tr -d '\"')" \
-     http://localhost:3000/api/admin/run-fetch
-```
-
----
-
-## Adding a Real Gold Price Source
-
-1. Open `lib/ingestion/providers/ygta.provider.ts`
-2. Uncomment and implement the fetch + parse block
-3. Set `GOLD_PROVIDER=ygta` and `GOLD_API_URL=<confirmed endpoint>` in env vars
-4. Test locally with `/api/gold/trigger` or `/api/admin/run-fetch`
-5. Monitor first production runs via Vercel Cron logs and `SourceStatus` table
-
----
-
-## Seeding Articles
-
-Articles are stored in the `article` table. To add one:
-
-```bash
-# Open Prisma Studio
-npm run db:studio
-```
-
-Or use SQL / a seed script. Articles need `published: true` and a `publishedAt` date to appear on the site.
-
----
-
-## Roadmap
-
-- [ ] Phase 1: DB + cron + real data source
-- [ ] Phase 2: Full homepage with live data
-- [ ] Phase 3: Supporting pages
-- [ ] Phase 4: Polish, SEO, mobile QA
-- [ ] Phase 5: Real ads, alerts, admin panel

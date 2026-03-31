@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { MobileNav } from './MobileNav'
+import { MobileNav }       from './MobileNav'
+import { CurrencyToggle }  from './CurrencyToggle'
 
 const NAV_LINKS = [
   { href: '/',           label: 'หน้าแรก' },
@@ -42,8 +43,11 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Mobile nav (client component — handles toggle state) */}
-          <MobileNav />
+          {/* Right-side controls */}
+          <div className="flex items-center gap-2">
+            <CurrencyToggle />
+            <MobileNav />
+          </div>
         </div>
       </div>
     </header>

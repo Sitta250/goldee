@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from 'next'
 import { Sarabun } from 'next/font/google'
 import './globals.css'
 
-import { Header }    from '@/components/layout/Header'
-import { Footer }    from '@/components/layout/Footer'
-import { AdBanner }  from '@/components/ads/AdBanner'
-import { AdFooter }  from '@/components/ads/AdFooter'
+import { Header }            from '@/components/layout/Header'
+import { Footer }            from '@/components/layout/Footer'
+import { AdBanner }          from '@/components/ads/AdBanner'
+import { AdFooter }          from '@/components/ads/AdFooter'
+import { CurrencyProvider }  from '@/contexts/CurrencyContext'
+import { getLatestSnapshot } from '@/lib/queries/prices'
 
 // ─── Thai-supporting Google Font ──────────────────────────────────────────────
 const sarabun = Sarabun({
@@ -80,11 +82,16 @@ export const viewport: Viewport = {
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Fetch initial exchange rate server-side so CurrencyToggle renders without
+  // a client-side waterfall. Falls back to null → toggle hidden until rate exists.
+  const latestSnapshot = await getLatestSnapshot()
+  const initialRate    = latestSnapshot?.usdThb ?? null
+
   return (
     <html lang="th" className={sarabun.variable}>
       <body className="bg-gray-50 text-gray-900 font-sans antialiased">
@@ -96,15 +103,17 @@ export default function RootLayout({
           ข้ามไปยังเนื้อหาหลัก
         </a>
 
-        <Header />
-        <AdBanner />
+        <CurrencyProvider initialRate={initialRate}>
+          <Header />
+          <AdBanner />
 
-        <main id="main-content" className="min-h-screen">
-          {children}
-        </main>
+          <main id="main-content" className="min-h-screen">
+            {children}
+          </main>
 
-        <AdFooter />
-        <Footer />
+          <AdFooter />
+          <Footer />
+        </CurrencyProvider>
       </body>
     </html>
   )

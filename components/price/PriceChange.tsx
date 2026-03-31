@@ -1,5 +1,8 @@
+'use client'
+
 import type { PriceChange } from '@/types/gold'
-import { formatPrice, formatPercent } from '@/lib/utils/format'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatPercent } from '@/lib/utils/format'
 
 interface PriceChangeProps {
   change: PriceChange
@@ -8,6 +11,7 @@ interface PriceChangeProps {
 
 export function PriceChangeDisplay({ change, className = '' }: PriceChangeProps) {
   const { amount, percent, direction } = change
+  const { symbol, format } = useCurrency()
 
   if (direction === 'flat') {
     return (
@@ -26,10 +30,10 @@ export function PriceChangeDisplay({ change, className = '' }: PriceChangeProps)
         className={`flex items-center gap-1 text-base font-semibold tabular-nums ${
           isUp ? 'text-green-600' : 'text-red-600'
         }`}
-        aria-label={`${isUp ? 'ขึ้น' : 'ลง'} ${formatPrice(amount)} บาท`}
+        aria-label={`${isUp ? 'ขึ้น' : 'ลง'} ${symbol}${format(amount)}`}
       >
         {isUp ? '▲' : '▼'}
-        {formatPrice(amount)}
+        {symbol}{format(amount)}
       </span>
 
       {/* Percentage */}

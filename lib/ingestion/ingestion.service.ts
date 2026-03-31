@@ -3,6 +3,7 @@ import { validateAndNormalize, ValidationError } from './validate'
 import { checkDuplicate, touchLastSeenAt }       from './dedupe'
 import { insertSnapshot }        from './persist'
 import { getActiveProvider }     from './providers'
+import { getUsdThbRate }         from './exchange-rate'
 import { upsertSourceStatus }    from '@/lib/queries/settings'
 import type { IngestionResult }  from './types'
 
@@ -30,14 +31,18 @@ export async function ingestGoldPrice(): Promise<IngestionResult> {
   const label    = provider.sourceName
 
   try {
-    // ── 1. Fetch (with retry) ────────────────────────────────────────────────
-    const raw = await withRetry(
-      () => provider.fetchLatestPrice(),
-      { label, maxAttempts: 3, baseDelayMs: 1_000 },
-    )
+    // ── 1. Fetch gold price + exchange rate in parallel ─────────────────────
+    const [raw, usdThb] = await Promise.all([
+      withRetry(
+        () => provider.fetchLatestPrice(),
+        { label, maxAttempts: 3, baseDelayMs: 1_000 },
+      ),
+      getUsdThbRate(),
+    ])
 
     // ── 2. Validate + normalise ──────────────────────────────────────────────
-    const price = validateAndNormalize(raw)
+    // Attach the exchange rate (may be null if fetch failed and no cache exists)
+    const price = validateAndNormalize({ ...raw, usdThb: raw.usdThb ?? usdThb })
 
     // ── 3. Deduplicate ───────────────────────────────────────────────────────
     const { isDuplicate, latestSnapshotId, reason } = await checkDuplicate(

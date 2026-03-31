@@ -23,8 +23,12 @@ import type { GoldPriceProvider, NormalizedGoldPrice } from '../types'
 // ─── Endpoint configuration ───────────────────────────────────────────────────
 // The hardcoded value is the known stable endpoint.
 // Set GOLD_API_URL in .env to override (e.g. for a staging mirror or test fixture).
+//
+// YGTA migrated their site to Next.js (observed 2026-03).
+// Old endpoint: /UpdatePriceList.aspx  (returned JSON array)
+// New endpoint: /api/Latest?readjson=false  (returns plain JSON object)
 
-const YGTA_DEFAULT_URL = 'https://www.goldtraders.or.th/UpdatePriceList.aspx'
+const YGTA_DEFAULT_URL = 'https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false'
 
 function getEndpointUrl(): string {
   return process.env.GOLD_API_URL?.trim() || YGTA_DEFAULT_URL
@@ -39,11 +43,13 @@ const FETCH_TIMEOUT_MS = 15_000
  * Update here if the site starts returning 403 or blocking the crawler.
  */
 const REQUEST_HEADERS: Record<string, string> = {
-  'User-Agent':      'goldee-price-bot/1.0 (+https://goldee.app)',
+  'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept':          'application/json, text/plain, */*',
   'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8',
   'Referer':         'https://www.goldtraders.or.th/',
+  'Origin':          'https://www.goldtraders.or.th',
   'Cache-Control':   'no-cache',
+  'Pragma':          'no-cache',
 }
 
 // ─── Field name aliases ───────────────────────────────────────────────────────
@@ -53,28 +59,34 @@ const REQUEST_HEADERS: Record<string, string> = {
 // YGTA added new field names — add them here, don't touch the logic below.
 
 const FIELD_ALIASES = {
-  /** Price announcement ID — "YY/NNNN" e.g. "68/0234" */
-  pid:         ['Pid', 'PID', 'pid', 'PriceId', 'GoldPriceID'],
+  /** Price announcement ID */
+  pid:         ['goldPriceID', 'GoldPriceID', 'Pid', 'PID', 'pid', 'PriceId'],
 
   /** Gold bar: price YGTA will pay to BUY from the public */
-  barBuy:      ['BuyBar', 'buy_bar', 'buyBar', 'BarBuy', 'Bar_Buy', 'BuyBar96_5'],
+  barBuy:      ['bL_BuyPrice', 'BuyBar', 'buy_bar', 'buyBar', 'BarBuy', 'Bar_Buy', 'BuyBar96_5'],
 
   /** Gold bar: price the public pays to BUY from YGTA members */
-  barSell:     ['SellBar', 'sell_bar', 'sellBar', 'BarSell', 'Bar_Sell', 'SellBar96_5'],
+  barSell:     ['bL_SellPrice', 'SellBar', 'sell_bar', 'sellBar', 'BarSell', 'Bar_Sell', 'SellBar96_5'],
 
-  /** Jewelry: buy-back price (public sells TO dealer) */
-  jewelryBuy:  ['BuyOrnament', 'buy_ornament', 'OrnamentBuy', 'Ornament_Buy'],
+  /** Jewelry 96.5%: buy-back price (public sells TO dealer) */
+  jewelryBuy:  ['oM965_BuyPrice', 'BuyOrnament', 'buy_ornament', 'OrnamentBuy', 'Ornament_Buy'],
 
-  /** Jewelry: sale price (public BUYS from dealer, includes making charge) */
-  jewelrySell: ['SellOrnament', 'sell_ornament', 'OrnamentSell', 'Ornament_Sell'],
+  /** Jewelry 96.5%: sale price (public BUYS from dealer, includes making charge) */
+  jewelrySell: ['oM965_SellPrice', 'SellOrnament', 'sell_ornament', 'OrnamentSell', 'Ornament_Sell'],
 
-  /** World spot price, USD per troy oz */
-  spotGold:    ['SpotGold', 'spot_gold', 'GoldSpot', 'SpotGoldUSD', 'WorldGold'],
+  /** World spot price (THB per gram in new API; USD per troy oz in old API) */
+  spotGold:    ['goldSpot', 'SpotGold', 'spot_gold', 'GoldSpot', 'SpotGoldUSD', 'WorldGold'],
 
-  /** Date part of announcement timestamp, "DD/MM/YYYY" */
+  /** USD → THB exchange rate (provided directly in new API) */
+  bahtPerUsd:  ['bahtPerUSD', 'BahtPerUSD', 'usdThb', 'UsdThb'],
+
+  /** ISO timestamp of announcement — new API: "2026-03-31T16:49:00" (UTC+7) */
+  asTime:      ['asTime', 'AsTime'],
+
+  /** Date part of announcement timestamp — old API: "DD/MM/YYYY" */
   updateDate:  ['UpdateDate', 'update_date', 'Date', 'ThDate', 'TH_Date'],
 
-  /** Time part of announcement timestamp, "HH:mm" */
+  /** Time part of announcement timestamp — old API: "HH:mm" */
   updateTime:  ['UpdateTime', 'update_time', 'Time', 'ThTime', 'TH_Time'],
 } as const
 
@@ -129,7 +141,7 @@ export class YgtaProvider implements GoldPriceProvider {
       jewelryBuy:         parsed.jewelryBuy,
       jewelrySell:        parsed.jewelrySell,
       spotGoldUsd:        parsed.spotGoldUsd,
-      usdThb:             null, // YGTA does not publish this field directly
+      usdThb:             parsed.bahtPerUsd,  // provided directly by new YGTA API
       notes:              null,
     }
   }
@@ -145,6 +157,7 @@ export interface ParsedYgtaRow {
   jewelryBuy:  number
   jewelrySell: number
   spotGoldUsd: number | null
+  bahtPerUsd:  number | null
 }
 
 // ─── Parsing helpers (exported for unit tests) ────────────────────────────────
@@ -198,21 +211,25 @@ export function parseYgtaResponse(rawBody: string): ParsedYgtaRow {
  * Throws if any required price field is missing or invalid.
  */
 export function parseYgtaRow(row: Record<string, unknown>): ParsedYgtaRow {
-  const barBuy     = requirePriceField(row, 'barBuy',      FIELD_ALIASES.barBuy)
-  const barSell    = requirePriceField(row, 'barSell',     FIELD_ALIASES.barSell)
-  const jewelryBuy = requirePriceField(row, 'jewelryBuy',  FIELD_ALIASES.jewelryBuy)
-  const jewelrySell= requirePriceField(row, 'jewelrySell', FIELD_ALIASES.jewelrySell)
+  const barBuy      = requirePriceField(row, 'barBuy',      FIELD_ALIASES.barBuy)
+  const barSell     = requirePriceField(row, 'barSell',     FIELD_ALIASES.barSell)
+  const jewelryBuy  = requirePriceField(row, 'jewelryBuy',  FIELD_ALIASES.jewelryBuy)
+  const jewelrySell = requirePriceField(row, 'jewelrySell', FIELD_ALIASES.jewelrySell)
 
   // Optional fields — null if missing or unparseable
   const spotGoldUsd = optionalPriceField(row, FIELD_ALIASES.spotGold)
+  const bahtPerUsd  = optionalPriceField(row, FIELD_ALIASES.bahtPerUsd)
   const pid         = optionalStringField(row, FIELD_ALIASES.pid)
 
-  // Timestamp — combine UpdateDate + UpdateTime
-  const dateStr  = optionalStringField(row, FIELD_ALIASES.updateDate)
-  const timeStr  = optionalStringField(row, FIELD_ALIASES.updateTime)
-  const capturedAt = parseThaiDateTime(dateStr, timeStr)
+  // Timestamp — new API: ISO string in asTime; old API: split UpdateDate + UpdateTime
+  const asTimeStr = optionalStringField(row, FIELD_ALIASES.asTime)
+  const dateStr   = optionalStringField(row, FIELD_ALIASES.updateDate)
+  const timeStr   = optionalStringField(row, FIELD_ALIASES.updateTime)
+  const capturedAt = asTimeStr
+    ? parseIsoLocalTime(asTimeStr)
+    : parseThaiDateTime(dateStr, timeStr)
 
-  return { pid, capturedAt, barBuy, barSell, jewelryBuy, jewelrySell, spotGoldUsd }
+  return { pid, capturedAt, barBuy, barSell, jewelryBuy, jewelrySell, spotGoldUsd, bahtPerUsd }
 }
 
 /**
@@ -288,6 +305,33 @@ export function parsePriceValue(raw: unknown): number | null {
 
   if (!isFinite(num) || num <= 0) return null
   return num
+}
+
+/**
+ * Parse a local Thai time ISO string — e.g. "2026-03-31T16:49:00" (no timezone).
+ * YGTA timestamps are always in UTC+7 (Thailand Standard Time, no DST).
+ * Returns null if the string is missing or cannot be parsed.
+ */
+export function parseIsoLocalTime(isoStr: string): Date | null {
+  if (!isoStr) return null
+  const trimmed = isoStr.trim()
+
+  // Match "YYYY-MM-DDTHH:mm:ss" or "YYYY-MM-DDTHH:mm"
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) return null
+
+  const year    = parseInt(match[1], 10)
+  const month   = parseInt(match[2], 10) - 1  // 0-based for Date.UTC
+  const day     = parseInt(match[3], 10)
+  const hours   = parseInt(match[4], 10)
+  const minutes = parseInt(match[5], 10)
+  const seconds = match[6] ? parseInt(match[6], 10) : 0
+
+  const UTC_OFFSET_MS = 7 * 60 * 60 * 1_000
+  const utcMs = Date.UTC(year, month, day, hours, minutes, seconds, 0) - UTC_OFFSET_MS
+  const result = new Date(utcMs)
+
+  return isNaN(result.getTime()) ? null : result
 }
 
 /**
