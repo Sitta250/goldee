@@ -3,6 +3,7 @@ interface SectionHeadingProps {
   subtitle?: string
   action?: React.ReactNode  // e.g. a "ดูทั้งหมด" link
   className?: string
+  id?: string
 }
 
 export function SectionHeading({
@@ -10,11 +11,12 @@ export function SectionHeading({
   subtitle,
   action,
   className = '',
+  id,
 }: SectionHeadingProps) {
   return (
     <div className={`flex items-end justify-between gap-4 ${className}`}>
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        <h2 id={id} className="text-xl font-semibold text-gray-900">{title}</h2>
         {subtitle && (
           <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
         )}

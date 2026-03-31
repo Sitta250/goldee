@@ -1,78 +1,126 @@
 import type { Metadata } from 'next'
-import { Container } from '@/components/layout/Container'
-import { TrendChart } from '@/components/chart/TrendChart'
-import { PriceTable } from '@/components/price/PriceTable'
-import { AdRectangle } from '@/components/ads/AdRectangle'
-import { SectionHeading } from '@/components/ui/SectionHeading'
 
-// TODO: Uncomment when DB is ready
-// import { getSnapshotsByRange, getPaginatedSnapshots } from '@/lib/queries/prices'
+import {
+  getHistoryChartData,
+  getHistoryStats,
+  getHistoryTableRows,
+  type HistoryTimeframe,
+} from '@/lib/queries/history'
 
-export const metadata: Metadata = {
-  title: 'ประวัติราคาทอง',
-  description:
-    'ดูประวัติราคาทองคำย้อนหลัง ทองคำแท่งและทองรูปพรรณ พร้อมกราฟแนวโน้มตั้งแต่ 1 วันถึง 1 ปี',
-  alternates: { canonical: '/history' },
-}
+import { buildMetadata }        from '@/lib/utils/metadata'
+import { Container }            from '@/components/layout/Container'
+import { HistoryChart }         from '@/components/history/HistoryChart'
+import { HistoryTimeframeNav }  from '@/components/history/HistoryTimeframeNav'
+import { StatCards }            from '@/components/history/StatCards'
+import { HistoryTable }         from '@/components/history/HistoryTable'
+import { MethodologyNote }      from '@/components/history/MethodologyNote'
+import { AdRectangle }          from '@/components/ads/AdRectangle'
+import { Divider }              from '@/components/ui/Divider'
 
+// ─── Metadata ─────────────────────────────────────────────────────────────────
+
+export const metadata: Metadata = buildMetadata({
+  title:       'ประวัติราคาทอง',
+  description: 'ดูประวัติราคาทองคำย้อนหลัง ทองคำแท่ง 96.5% และทองรูปพรรณ พร้อมกราฟแนวโน้ม สถิติสูง-ต่ำ และตารางราคาตั้งแต่ 7 วันจนถึงทั้งหมด',
+  canonical:   '/history',
+})
+
+// Revalidate matches the cron interval
 export const revalidate = 300
 
-export default async function HistoryPage() {
-  // TODO: Replace with real DB queries
-  // const [chartData, { rows, total }] = await Promise.all([
-  //   getSnapshotsByRange('7D'),
-  //   getPaginatedSnapshots(1, 30),
-  // ])
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  // ── Mock chart data ────────────────────────────────────────────────────────
-  const mockChartData = Array.from({ length: 7 * 24 }, (_, i) => ({
-    timestamp: new Date(Date.now() - (7 * 24 - i) * 60 * 60 * 1000).toISOString(),
-    barSell:   47000 + Math.round(Math.sin(i * 0.3) * 400 + Math.random() * 150),
-  }))
+const VALID_RANGES: HistoryTimeframe[] = ['7D', '30D', '6M', '1Y', 'All']
+const DEFAULT_RANGE: HistoryTimeframe  = '7D'
+const PER_PAGE = 30
 
-  // ── Mock table rows ────────────────────────────────────────────────────────
-  const mockRows = Array.from({ length: 15 }, (_, i) => ({
-    id:          `mock-${i}`,
-    fetchedAt:   new Date(Date.now() - i * 5 * 60 * 1000),
-    goldBarBuy:  47400 - i * 5,
-    goldBarSell: 47500 - i * 5,
-    jewelryBuy:  46700 - i * 4,
-    jewelrySell: 48093 - i * 5,
-    source:      'mock',
-  }))
+function parseRange(raw: string | undefined): HistoryTimeframe {
+  if (raw && (VALID_RANGES as string[]).includes(raw)) {
+    return raw as HistoryTimeframe
+  }
+  return DEFAULT_RANGE
+}
+
+function parsePage(raw: string | undefined): number {
+  const n = parseInt(raw ?? '1', 10)
+  return isNaN(n) || n < 1 ? 1 : n
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; page?: string }>
+}) {
+  const params = await searchParams
+  const range  = parseRange(params.range)
+  const page   = parsePage(params.page)
+
+  // Three parallel queries — chart, stats, table — each scoped to the same range
+  const [chartData, stats, { rows, total }] = await Promise.all([
+    getHistoryChartData(range),
+    getHistoryStats(range),
+    getHistoryTableRows(page, PER_PAGE, range),
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
   return (
-    <div className="py-6 sm:py-8 space-y-8">
+    <div className="py-6 sm:py-8">
       <Container>
-        <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทอง</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          ราคาทองคำแท่ง 96.5% อัพเดทอัตโนมัติทุก 5 นาที
-        </p>
-      </Container>
+        <div className="space-y-8">
 
-      <Container>
-        {/* Full-size trend chart — defaults to 7D on this page */}
-        <TrendChart initialData={mockChartData} initialRange="7D" />
-      </Container>
+          {/* ── 1. Page heading ─────────────────────────────────────────────── */}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทอง</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              ราคาทองคำแท่ง 96.5% และทองรูปพรรณ บันทึกทุก 5 นาที
+            </p>
+          </div>
 
-      <Container>
-        <AdRectangle />
-      </Container>
+          {/* ── 2. Chart section ─────────────────────────────────────────────── */}
+          <section
+            aria-labelledby="chart-section-heading"
+            className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2
+                id="chart-section-heading"
+                className="text-sm font-semibold text-gray-700"
+              >
+                แนวโน้มราคาทอง
+              </h2>
+              {/* Plain <Link> buttons — clicking triggers server re-render with new range */}
+              <HistoryTimeframeNav active={range} />
+            </div>
 
-      <Container>
-        <SectionHeading
-          title="ตารางราคาย้อนหลัง"
-          subtitle="ราคาล่าสุด 30 รายการ"
-          className="mb-4"
-        />
+            {/* Client component — metric toggle switches displayed column locally,
+                no re-fetch. All 4 price columns are already in chartData.          */}
+            <HistoryChart data={chartData} activeRange={range} />
+          </section>
 
-        {/* TODO: Add pagination controls when real data is wired up */}
-        <PriceTable rows={mockRows} highlightFirst />
+          {/* ── 3. Stat cards (bar sell by default) ─────────────────────────── */}
+          <StatCards stats={stats} range={range} />
 
-        {/* Pagination placeholder */}
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-400">
-          {/* TODO: Build a Pagination component for page > 1 */}
-          <span>หน้า 1 จาก 1</span>
+          <Divider />
+
+          {/* ── 4. Historical table with pagination ─────────────────────────── */}
+          <HistoryTable
+            rows={rows}
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            range={range}
+            perPage={PER_PAGE}
+          />
+
+          {/* ── 5. Ad slot ──────────────────────────────────────────────────── */}
+          <AdRectangle />
+
+          {/* ── 6. Methodology note ─────────────────────────────────────────── */}
+          <MethodologyNote />
+
         </div>
       </Container>
     </div>

@@ -99,7 +99,7 @@ export function formatRelativeTime(date: Date | string): string {
 /** Format a timestamp for the chart X-axis based on the active timeframe */
 export function formatChartLabel(
   isoString: string,
-  timeframe: '1D' | '7D' | '30D' | '6M' | '1Y',
+  timeframe: '1D' | '7D' | '30D' | '6M' | '1Y' | 'All',
 ): string {
   const d = new Date(isoString)
   if (timeframe === '1D') return formatTime(d).replace(' น.', '')

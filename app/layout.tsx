@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from 'next'
 import { Sarabun } from 'next/font/google'
 import './globals.css'
 
-import { Header } from '@/components/layout/Header'
-import { Footer } from '@/components/layout/Footer'
-import { AdBanner } from '@/components/ads/AdBanner'
-import { AdFooter } from '@/components/ads/AdFooter'
+import { Header }    from '@/components/layout/Header'
+import { Footer }    from '@/components/layout/Footer'
+import { AdBanner }  from '@/components/ads/AdBanner'
+import { AdFooter }  from '@/components/ads/AdFooter'
 
 // ─── Thai-supporting Google Font ──────────────────────────────────────────────
 const sarabun = Sarabun({
@@ -16,7 +16,8 @@ const sarabun = Sarabun({
 })
 
 // ─── Site-wide metadata defaults ──────────────────────────────────────────────
-// Each page can override title, description, and openGraph via its own metadata export.
+// Individual pages override title, description, and openGraph via their own
+// metadata export. The template appends " | Goldee" to every page title.
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -29,24 +30,42 @@ export const metadata: Metadata = {
   description:
     'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทล่าสุดทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลขทอง',
   keywords: [
-    'ราคาทอง', 'ราคาทองวันนี้', 'ทองคำแท่ง', 'ทองรูปพรรณ',
-    'gold price thailand', 'ราคาทองล่าสุด',
+    'ราคาทอง', 'ราคาทองวันนี้', 'ราคาทองคำแท่ง', 'ทองรูปพรรณ',
+    'gold price thailand', 'ราคาทองล่าสุด', 'สมาคมค้าทองคำ',
   ],
   authors:  [{ name: 'Goldee' }],
+  creator:  'Goldee',
   openGraph: {
     type:      'website',
     locale:    'th_TH',
     url:       '/',
     siteName:  'Goldee',
-    images:    [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Goldee — ราคาทองวันนี้' }],
+    title:     'Goldee — ราคาทองวันนี้',
+    description:
+      'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที',
+    images: [{
+      url:    '/og-image.png',
+      width:  1200,
+      height: 630,
+      alt:    'Goldee — ราคาทองวันนี้',
+    }],
   },
   twitter: {
-    card:  'summary_large_image',
-    images:['/og-image.png'],
+    card:        'summary_large_image',
+    title:       'Goldee — ราคาทองวันนี้',
+    description: 'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที',
+    images:      ['/og-image.png'],
   },
   robots: {
     index:  true,
     follow: true,
+    googleBot: {
+      index:             true,
+      follow:            true,
+      'max-video-preview':  -1,
+      'max-image-preview':  'large',
+      'max-snippet':        -1,
+    },
   },
   alternates: {
     canonical: '/',
@@ -54,9 +73,9 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  width:       'device-width',
+  width:        'device-width',
   initialScale: 1,
-  themeColor:  '#d4911a',
+  themeColor:   '#d4911a',
 }
 
 // ─── Root layout ──────────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ import { TimeframeSelector } from './TimeframeSelector'
 
 interface TrendChartProps {
   // Initial data for the default timeframe (1D), server-fetched
-  initialData: ChartDataPoint[]
+  initialData:   ChartDataPoint[]
   initialRange?: Timeframe
 }
 
@@ -45,8 +45,8 @@ function ChartTooltip({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function TrendChart({ initialData, initialRange = '1D' }: TrendChartProps) {
-  const [range, setRange] = useState<Timeframe>(initialRange)
-  const [data, setData] = useState<ChartDataPoint[]>(initialData)
+  const [range,   setRange]   = useState<Timeframe>(initialRange)
+  const [data,    setData]    = useState<ChartDataPoint[]>(initialData)
   const [loading, setLoading] = useState(false)
 
   const handleRangeChange = useCallback(async (newRange: Timeframe) => {
@@ -64,7 +64,6 @@ export function TrendChart({ initialData, initialRange = '1D' }: TrendChartProps
     }
   }, [])
 
-  // Format timestamps for the X-axis based on active range
   const chartData = data.map((p) => ({
     ...p,
     label: formatChartLabel(p.timestamp, range),
@@ -83,50 +82,62 @@ export function TrendChart({ initialData, initialRange = '1D' }: TrendChartProps
         <TimeframeSelector active={range} onChange={handleRangeChange} />
       </div>
 
-      {/* Chart area */}
+      {/* Chart area — responsive height via CSS */}
       <div
         className={`transition-opacity duration-200 ${loading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}
         aria-hidden={loading}
       >
         {data.length === 0 ? (
-          <div className="flex items-center justify-center h-48 text-sm text-gray-400">
+          <div
+            role="img"
+            aria-label="ยังไม่มีข้อมูลกราฟ"
+            className="flex items-center justify-center h-[160px] sm:h-[220px] text-sm text-gray-400 bg-gray-50 rounded-lg"
+          >
             ยังไม่มีข้อมูลกราฟ
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11, fill: '#94a3b8' }}
-                tickLine={false}
-                axisLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: '#94a3b8' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v: number) => `฿${(v / 1000).toFixed(0)}k`}
-                width={48}
-                domain={['auto', 'auto']}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="barSell"
-                stroke="#d4911a"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: '#d4911a', strokeWidth: 0 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div
+            role="img"
+            aria-label="กราฟราคาทองคำแท่ง"
+            className="h-[160px] sm:h-[220px]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={40}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                  width={36}
+                  domain={['auto', 'auto']}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="barSell"
+                  stroke="#d4911a"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#d4911a', strokeWidth: 0 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
       {loading && (
-        <p className="text-xs text-center text-gray-400" aria-live="polite">
+        <p className="text-xs text-center text-gray-400" aria-live="polite" aria-atomic="true">
           กำลังโหลดข้อมูล…
         </p>
       )}

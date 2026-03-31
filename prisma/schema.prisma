@@ -45,7 +45,8 @@ model GoldPriceSnapshot {
   // Optional admin annotation
   notes              String?
 
-  // Full original response — kept for debugging and source-swap safety
+  // Reserved for future use — always NULL in current implementation.
+  // Never store raw API responses here; use a separate audit table if needed.
   rawPayload         Json?     @map("raw_payload")
 
   @@index([fetchedAt(sort: Desc)])

@@ -1,19 +1,20 @@
-import { db } from '@/lib/db'
+import { db }     from '@/lib/db'
+import { Prisma }  from '@prisma/client'
 import type { NormalizedGoldPrice } from './types'
-import type { GoldPriceSnapshot } from '@/types/gold'
+import type { GoldPriceSnapshot }   from '@/types/gold'
 
 /**
  * Insert a new GoldPriceSnapshot row.
  *
  * Design notes:
  *
- * rawPayload is intentionally left null.
+ * rawPayload is intentionally left as SQL NULL (Prisma.JsonNull).
  *   We do not store raw HTML, full API responses, or large debug payloads in this
  *   table. If you need a raw response audit trail, write it to a separate table or
- *   external log sink — not here.
+ *   external log sink — not here. The field exists in the schema for future use only.
  *
  * lastSeenAt is initialised to fetchedAt on insert.
- *   It will be bumped (without a new row) by touchLastSeenAt() on duplicate hits.
+ *   It is bumped (without a new row) by touchLastSeenAt() on duplicate hits.
  *   The window [fetchedAt → lastSeenAt] tells a future downsampler how many cron
  *   cycles this single row represents, making it safe to delete intermediate rows
  *   without losing coverage information.
@@ -42,9 +43,9 @@ export async function insertSnapshot(
       jewelryBuy:         price.jewelryBuy,
       jewelrySell:        price.jewelrySell,
       spotGoldUsd:        price.spotGoldUsd ?? null,
-      usdThb:             price.usdThb ?? null,
+      usdThb:             price.usdThb      ?? null,
       notes:              price.notes,
-      rawPayload:         null,   // intentionally empty — see design note above
+      rawPayload:         Prisma.JsonNull,  // reserved for future use — never populated
     },
     select: snapshotSelect,
   })
@@ -52,8 +53,8 @@ export async function insertSnapshot(
   return rowToSnapshot(row)
 }
 
-// ─── Shared mapper ────────────────────────────────────────────────────────────
-// Used here and re-exported for use in dedupe checks that need a full snapshot.
+// ─── Shared select + mapper ───────────────────────────────────────────────────
+// Omits rawPayload from every query to keep response payloads lean.
 
 export const snapshotSelect = {
   id: true, fetchedAt: true, lastSeenAt: true, capturedAt: true,
@@ -65,20 +66,20 @@ export const snapshotSelect = {
 } as const
 
 type SnapshotRow = {
-  id: string
-  fetchedAt: Date
-  lastSeenAt: Date
-  capturedAt: Date | null
-  source: string
-  sourceName: string | null
+  id:                 string
+  fetchedAt:          Date
+  lastSeenAt:         Date
+  capturedAt:         Date | null
+  source:             string
+  sourceName:         string | null
   announcementNumber: string | null
-  goldBarBuy: object
-  goldBarSell: object
-  jewelryBuy: object
-  jewelrySell: object
-  spotGoldUsd: object | null
-  usdThb: object | null
-  notes: string | null
+  goldBarBuy:         object
+  goldBarSell:        object
+  jewelryBuy:         object
+  jewelrySell:        object
+  spotGoldUsd:        object | null
+  usdThb:             object | null
+  notes:              string | null
 }
 
 export function rowToSnapshot(row: SnapshotRow): GoldPriceSnapshot {

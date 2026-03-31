@@ -67,6 +67,12 @@ export interface DailySummary {
 
 // ─── Calculator types ─────────────────────────────────────────────────────────
 
-export type WeightUnit      = 'baht' | 'gram'
-export type PurityOption    = 96.5 | 90 | 80 | 'custom'
+export type WeightUnit = 'baht' | 'gram'
+
+/**
+ * Gold purity options supported by the calculator.
+ * Matches the PURITY_PRESETS array in GoldCalculator.tsx.
+ */
+export type PurityOption = 96.5 | 99.99 | 90 | 80 | 75 | 'custom'
+
 export type TransactionType = 'buy' | 'sell'

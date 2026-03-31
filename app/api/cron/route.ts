@@ -1,49 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 
-// ─── Cron handler ─────────────────────────────────────────────────────────────
-// Called by Vercel Cron every 5 minutes (configured in vercel.json).
-// Protected by CRON_SECRET so only Vercel's infrastructure can trigger it.
+// ─── Legacy cron path — /api/cron ────────────────────────────────────────────
+// Kept for backwards compatibility. The canonical cron path is now:
+//   /api/cron/fetch-gold-price  (configured in vercel.json)
 //
-// Flow: validate secret → call /api/gold/fetch internally → return result
+// Both paths call ingestGoldPrice() directly — no HTTP self-calls.
 
 export async function GET(req: NextRequest) {
-  // ── Security check ──────────────────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization')
-  const secret     = process.env.CRON_SECRET
+  const start  = Date.now()
+  const secret = process.env.CRON_SECRET
+  const auth   = req.headers.get('authorization')
 
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!secret || auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  try {
-    // Call the internal fetch handler
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/gold/fetch`, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${secret}`,
-      },
-    })
+  const result     = await ingestGoldPrice()
+  const durationMs = Date.now() - start
 
-    const data = await res.json()
-
-    if (!res.ok) {
-      console.error('[cron] gold fetch failed:', data)
-      return NextResponse.json({ error: 'Fetch failed', detail: data }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      ok:        true,
-      message:   'Gold price snapshot saved',
-      snapshot:  data.snapshot,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (err) {
-    console.error('[cron] unexpected error:', err)
+  if (result.status === 'error') {
     return NextResponse.json(
-      { error: 'Internal error', message: (err as Error).message },
+      { ok: false, status: 'error', error: result.error, durationMs },
       { status: 500 },
     )
   }
+
+  return NextResponse.json({ ok: true, durationMs, ...result })
 }

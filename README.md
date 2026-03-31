@@ -127,13 +127,25 @@ All pages are server components. Only these components are `'use client'`:
 - `MobileNav` — menu toggle state
 
 ### Data source abstraction
-`lib/gold/fetcher.ts` is the **only** file that touches the external gold price API.
-To swap data sources: update `fetchGoldPrice()` in that file only.
+The provider system in `lib/ingestion/providers/` controls which gold price source is used.
+Set `GOLD_PROVIDER=mock` (default) for local dev, or `GOLD_PROVIDER=ygta` for production.
+To add a new source: implement `GoldPriceProvider`, register it in `providers/index.ts`.
 
 ### Cron flow
 ```
-Vercel Cron → /api/cron (auth check) → /api/gold/fetch → DB insert
+Vercel Cron (every 5 min)
+  → GET /api/cron/fetch-gold-price   ← Authorization: Bearer <CRON_SECRET>
+  → ingestGoldPrice()
+      ├─ getActiveProvider().fetchLatestPrice()   (with 3× retry)
+      ├─ validateAndNormalize()                   (throws ValidationError on bad data)
+      ├─ checkDuplicate()
+      │     duplicate → touchLastSeenAt()  → return 'skipped'
+      │     new price → insertSnapshot()   → return 'inserted'
+      └─ upsertSourceStatus()                     (always — records ok/error)
 ```
+
+⚠️ **Vercel Cron only runs on Production deployments.**
+Preview deployments do not receive cron calls. Use the admin endpoint for manual testing.
 
 ### Ad slots
 Four named placeholder components. Replace the `<div>` contents with your ad network script. Sizes are documented in each file.
@@ -142,24 +154,77 @@ Four named placeholder components. Replace the `<div>` contents with your ad net
 
 ## Deployment to Vercel
 
-1. Push your code to GitHub
-2. Import repo in [Vercel Dashboard](https://vercel.com)
-3. Set environment variables in Vercel project settings (same as `.env.local`)
-4. Deploy — cron jobs are automatically registered from `vercel.json`
+### 1. Push to GitHub and import into Vercel
 
-### Verify cron is working
+1. Push your repo to GitHub
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import the repo
+3. Vercel auto-detects Next.js — no build config needed
 
-After deploy, check Vercel Dashboard → **Cron Jobs** tab to see execution logs.
+### 2. Set environment variables in Vercel
+
+In your Vercel project → **Settings → Environment Variables**, add:
+
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | Neon pooled connection string |
+| `DATABASE_URL_UNPOOLED` | ✅ | Neon direct connection (migrations only) |
+| `CRON_SECRET` | ✅ | Random secret — `openssl rand -hex 32` |
+| `GOLD_PROVIDER` | ✅ | `mock` for now, `ygta` when implemented |
+| `NEXT_PUBLIC_SITE_URL` | ✅ | `https://yourdomain.vercel.app` |
+| `GOLD_API_URL` | when live | Confirmed gold price API endpoint |
+| `GOLD_API_KEY` | when live | API key if the source requires one |
+
+### 3. Deploy
+
+Click **Deploy**. Vercel reads `vercel.json` and registers the cron job automatically.
+
+### 4. Verify cron is running
+
+- Vercel Dashboard → your project → **Cron Jobs** tab
+- Each execution appears with its status, duration, and response body
+- Expect `{ "ok": true, "status": "inserted" | "skipped", "durationMs": ... }`
+
+### 5. Manual trigger (any environment)
+
+To fire one ingestion cycle without waiting for cron:
+
+```bash
+# Local dev
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
+     http://localhost:3000/api/admin/run-fetch
+
+# Production (e.g. after an outage)
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
+     https://yourdomain.vercel.app/api/admin/run-fetch
+```
+
+---
+
+## Local Development — Triggering Ingestion Manually
+
+Two options during local dev:
+
+**Option A — No auth required (dev only, blocked in production):**
+```bash
+# Just open in browser or curl — no token needed
+curl http://localhost:3000/api/gold/trigger
+```
+
+**Option B — Same endpoint as production admin (requires CRON_SECRET in .env.local):**
+```bash
+curl -H "Authorization: Bearer $(grep CRON_SECRET .env.local | cut -d= -f2 | tr -d '\"')" \
+     http://localhost:3000/api/admin/run-fetch
+```
 
 ---
 
 ## Adding a Real Gold Price Source
 
-1. Open `lib/gold/fetcher.ts`
-2. Replace the mock implementation with a real `fetch()` call
-3. Update `lib/gold/transformer.ts` with the actual response shape
-4. Set `GOLD_API_URL` and `GOLD_API_KEY` in environment variables
-5. Test with: `curl -H "Authorization: Bearer $CRON_SECRET" https://yoursite.com/api/cron`
+1. Open `lib/ingestion/providers/ygta.provider.ts`
+2. Uncomment and implement the fetch + parse block
+3. Set `GOLD_PROVIDER=ygta` and `GOLD_API_URL=<confirmed endpoint>` in env vars
+4. Test locally with `/api/gold/trigger` or `/api/admin/run-fetch`
+5. Monitor first production runs via Vercel Cron logs and `SourceStatus` table
 
 ---
 

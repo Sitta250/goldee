@@ -1,133 +1,98 @@
 import type { Metadata } from 'next'
-import { Container } from '@/components/layout/Container'
-import { PriceHero } from '@/components/price/PriceHero'
-import { TrendChart } from '@/components/chart/TrendChart'
-import { DailySummaryCard } from '@/components/home/DailySummaryCard'
-import { CalculatorPreview } from '@/components/calculator/CalculatorPreview'
-import { ArticleGrid } from '@/components/articles/ArticleGrid'
-import { FaqSection } from '@/components/home/FaqSection'
-import { AdRectangle } from '@/components/ads/AdRectangle'
-import { AdSidebar } from '@/components/ads/AdSidebar'
-import { SectionHeading } from '@/components/ui/SectionHeading'
-import { Divider } from '@/components/ui/Divider'
 import Link from 'next/link'
 
-// TODO: Uncomment when DB queries are wired up
-// import { getLatestSnapshot, getPreviousSnapshot, getSnapshotsByRange } from '@/lib/queries/prices'
-// import { getLatestArticles } from '@/lib/queries/articles'
-// import { calculateChange } from '@/lib/utils/trend'
-// import { db } from '@/lib/db'
+import { getHomepageData }    from '@/lib/queries/homepage'
+import { buildMetadata }      from '@/lib/utils/metadata'
+import { Container }          from '@/components/layout/Container'
+import { PriceHero }          from '@/components/price/PriceHero'
+import { TrendChart }         from '@/components/chart/TrendChart'
+import { DailySummaryCard }   from '@/components/home/DailySummaryCard'
+import { FaqSection }         from '@/components/home/FaqSection'
+import { CalculatorPreview }  from '@/components/calculator/CalculatorPreview'
+import { ArticleGrid }        from '@/components/articles/ArticleGrid'
+import { AdRectangle }        from '@/components/ads/AdRectangle'
+import { AdSidebar }          from '@/components/ads/AdSidebar'
+import { SectionHeading }     from '@/components/ui/SectionHeading'
+import { Divider }            from '@/components/ui/Divider'
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
-export const metadata: Metadata = {
-  title: 'ราคาทองวันนี้ — ทองคำแท่งและทองรูปพรรณ',
-  description:
-    'ราคาทองคำวันนี้ล่าสุด ทองคำแท่ง 96.5% และทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลข',
-  alternates: { canonical: '/' },
-}
+export const metadata: Metadata = buildMetadata({
+  title:       'ราคาทองวันนี้ — ทองคำแท่งและทองรูปพรรณ',
+  description: 'ราคาทองคำวันนี้ล่าสุด ทองคำแท่ง 96.5% และทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลขทอง',
+  canonical:   '/',
+})
 
-// ─── Revalidate every 5 minutes (matches cron interval) ──────────────────────
+// Revalidate every 5 minutes — matches the cron ingestion interval
 export const revalidate = 300
+
+// ─── Empty state — shown when the DB has no snapshots yet ─────────────────────
+// This renders on a brand-new deployment before the cron runs for the first time.
+
+function NoPriceData() {
+  return (
+    <section className="rounded-card bg-white border border-gray-100 shadow-card p-10 text-center space-y-3">
+      <p className="text-4xl select-none">📊</p>
+      <p className="text-base font-semibold text-gray-700">
+        ยังไม่มีข้อมูลราคาทอง
+      </p>
+      <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
+        ระบบกำลังเริ่มต้น — ราคาจะปรากฏโดยอัตโนมัติหลังการดึงข้อมูลครั้งแรก
+        (ทุก 5 นาทีในวันทำการ)
+      </p>
+    </section>
+  )
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  // TODO: Replace mock data with real DB queries when Phase 1 cron is wired up.
-  //
-  // const [latest, previous, chartData, articles, summary] = await Promise.all([
-  //   getLatestSnapshot(),
-  //   getPreviousSnapshot(),
-  //   getSnapshotsByRange('1D'),
-  //   getLatestArticles(3),
-  //   db.dailySummary.findFirst({ orderBy: { date: 'desc' } }),
-  // ])
-  //
-  // if (!latest) return <NoPriceDataFallback />
-  // const change = calculateChange(latest, previous)
-  // const latestPrice: LatestPriceData = { snapshot: latest, change }
-
-  // ── Mock data (remove in Phase 2) ────────────────────────────────────────
-  const mockSnapshot = {
-    id:          'mock-001',
-    fetchedAt:   new Date(),
-    goldBarBuy:  47400,
-    goldBarSell: 47500,
-    jewelryBuy:  46700,
-    jewelrySell: 48093,
-    source:      'mock',
-  }
-  const mockChange = { amount: 100, percent: 0.21, direction: 'up' as const }
-  const mockLatestPrice = { snapshot: mockSnapshot, change: mockChange }
-
-  const mockChartData = Array.from({ length: 24 }, (_, i) => ({
-    timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toISOString(),
-    barSell:   47200 + Math.round(Math.sin(i * 0.5) * 200 + Math.random() * 100),
-  }))
-
-  const mockArticles = [
-    {
-      slug:         'why-gold-price-rises',
-      titleTh:      'ทำไมราคาทองถึงขึ้นในช่วงนี้?',
-      summaryTh:    'เจาะลึกปัจจัยที่ทำให้ราคาทองคำพุ่งสูงขึ้น ตั้งแต่ดอลลาร์อ่อนค่าไปจนถึงความต้องการทองโลก',
-      coverImageUrl:null,
-      category:     'explainer' as const,
-      publishedAt:  new Date('2025-03-28'),
-    },
-    {
-      slug:         'gold-bar-vs-jewelry',
-      titleTh:      'ซื้อทองแท่งหรือทองรูปพรรณ อะไรดีกว่ากัน?',
-      summaryTh:    'เปรียบเทียบข้อดีข้อเสียของทองแท่งและทองรูปพรรณ เพื่อช่วยให้คุณตัดสินใจได้ถูกต้อง',
-      coverImageUrl:null,
-      category:     'guide' as const,
-      publishedAt:  new Date('2025-03-25'),
-    },
-    {
-      slug:         'gold-saving-beginners',
-      titleTh:      'มือใหม่ออมทอง: เริ่มต้นอย่างไรให้ถูกวิธี',
-      summaryTh:    'คู่มือฉบับย่อสำหรับผู้ที่ต้องการเริ่มออมทองเป็นครั้งแรก ข้อควรรู้และข้อผิดพลาดที่ควรหลีกเลี่ยง',
-      coverImageUrl:null,
-      category:     'guide' as const,
-      publishedAt:  new Date('2025-03-20'),
-    },
-  ]
-
-  const mockSummary = {
-    summaryTh:
-      'วันนี้ราคาทองคำแท่งปรับตัวขึ้น 100 บาท จากแรงซื้อในตลาดโลกหลังดัชนีดอลลาร์อ่อนค่าลง แนวโน้มระยะสั้นยังเป็นขาขึ้น',
-    highBarSell:  47600,
-    lowBarSell:   47300,
-    openBarSell:  47350,
-    closeBarSell: 47500,
-  }
-  // ── End mock data ──────────────────────────────────────────────────────────
+  const { latestPrice, chartData, summary, articles, faqItems } =
+    await getHomepageData()
 
   return (
-    <div className="py-6 sm:py-8 space-y-10">
+    <div className="py-6 sm:py-8">
       <Container>
-        {/* ── Main content + optional desktop sidebar ─────────────────────── */}
         <div className="flex gap-8 items-start">
-          {/* Main column */}
+
+          {/* ── Main column ───────────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-8">
 
-            {/* 1. Price Hero */}
-            <PriceHero data={mockLatestPrice} />
+            {/* 1. Hero: bar buy/sell + jewelry buy/sell + last updated + change */}
+            {latestPrice ? (
+              <PriceHero data={latestPrice} />
+            ) : (
+              <NoPriceData />
+            )}
 
-            {/* 2. Trend Chart */}
-            <TrendChart initialData={mockChartData} initialRange="1D" />
+            {/* 2. Trend chart — 1D data server-fetched, other ranges load
+                 client-side from /api/prices/history?range=X                  */}
+            <TrendChart initialData={chartData} initialRange="1D" />
 
-            {/* 3. In-content ad */}
+            {/* 3. In-content ad slot */}
             <AdRectangle />
 
-            {/* 4. Daily Summary */}
-            <DailySummaryCard {...mockSummary} />
+            {/* 4. Plain-language daily summary (skipped if not yet generated) */}
+            {summary && (
+              <DailySummaryCard
+                summaryTh={summary.summaryTh}
+                highBarSell={summary.highBarSell}
+                lowBarSell={summary.lowBarSell}
+                openBarSell={summary.openBarSell}
+                closeBarSell={summary.closeBarSell}
+              />
+            )}
 
-            {/* 5. Calculator preview */}
-            <CalculatorPreview goldBarSell={mockSnapshot.goldBarSell} />
+            {/* 5. Quick calculator preview (requires a live price) */}
+            {latestPrice && (
+              <CalculatorPreview
+                goldBarSell={latestPrice.snapshot.goldBarSell}
+              />
+            )}
 
             <Divider />
 
-            {/* 6. Latest articles */}
+            {/* 6. Latest 3 articles */}
             <section aria-labelledby="articles-heading">
               <SectionHeading
                 title="บทความล่าสุด"
@@ -142,17 +107,19 @@ export default async function HomePage() {
                   </Link>
                 }
               />
-              <ArticleGrid articles={mockArticles} />
+              <ArticleGrid articles={articles} />
             </section>
 
             <Divider />
 
-            {/* 7. FAQ */}
-            <FaqSection />
+            {/* 7. FAQ — loaded from DB, falls back to empty state */}
+            <FaqSection items={faqItems} />
+
           </div>
 
-          {/* Desktop sidebar ad (hidden on mobile) */}
+          {/* ── Desktop sidebar ad (hidden below lg breakpoint) ──────────────── */}
           <AdSidebar />
+
         </div>
       </Container>
     </div>
