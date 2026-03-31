@@ -3,6 +3,7 @@
 export interface GoldPriceSnapshot {
   id:                 string
   fetchedAt:          Date
+  lastSeenAt:         Date             // updated on dedup hits — no new row inserted
   capturedAt:         Date | null      // when officially announced by source
   source:             string           // short code: "ygta" | "seed" | "mock"
   sourceName:         string | null    // display name: "สมาคมค้าทองคำ"

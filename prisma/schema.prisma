@@ -17,6 +17,11 @@ model GoldPriceSnapshot {
   // When our system stored the record (auto-set)
   fetchedAt          DateTime  @default(now()) @map("fetched_at")
 
+  // Updated on every cron run when the price is identical to the last stored snapshot.
+  // Lets us track how long a price remained valid without inserting duplicate rows.
+  // Useful for downsampling: lastSeenAt - fetchedAt = coverage window of the row.
+  lastSeenAt         DateTime  @default(now()) @map("last_seen_at")
+
   // When the price was officially announced by the source (set from source timestamp)
   capturedAt         DateTime? @map("captured_at")
 

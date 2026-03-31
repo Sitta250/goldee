@@ -12,6 +12,7 @@ function n(v: object | null | undefined): number | null {
 function toSnapshot(row: {
   id: string
   fetchedAt: Date
+  lastSeenAt: Date
   capturedAt: Date | null
   source: string
   sourceName: string | null
@@ -27,6 +28,7 @@ function toSnapshot(row: {
   return {
     id:                 row.id,
     fetchedAt:          row.fetchedAt,
+    lastSeenAt:         row.lastSeenAt,
     capturedAt:         row.capturedAt,
     source:             row.source,
     sourceName:         row.sourceName,
@@ -43,7 +45,7 @@ function toSnapshot(row: {
 
 // Fields we select for full snapshot rows (omits rawPayload to keep payloads lean)
 const snapshotSelect = {
-  id: true, fetchedAt: true, capturedAt: true,
+  id: true, fetchedAt: true, lastSeenAt: true, capturedAt: true,
   source: true, sourceName: true, announcementNumber: true,
   goldBarBuy: true, goldBarSell: true,
   jewelryBuy: true, jewelrySell: true,
