@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// ─── Gold Price Snapshot ──────────────────────────────────────────────────────
+// One row inserted every 5 minutes by the cron job.
+// All prices are in Thai Baht (THB) per 1 baht-weight (บาทน้ำหนัก = 15.244g).
+model GoldPriceSnapshot {
+  id                 String    @id @default(uuid())
+
+  // When our system stored the record (auto-set)
+  fetchedAt          DateTime  @default(now()) @map("fetched_at")
+
+  // When the price was officially announced by the source (set from source timestamp)
+  capturedAt         DateTime? @map("captured_at")
+
+  // Source identification
+  source             String    @db.VarChar(50)          // short code: "ygta" | "manual" | "mock"
+  sourceName         String?   @map("source_name")      // display name: "สมาคมค้าทองคำ"
+  announcementNumber String?   @map("announcement_number") // e.g. "68/0234"
+
+  // Gold bar (ทองคำแท่ง) — 96.5% purity, prices per 1 baht-weight
+  goldBarBuy         Decimal   @map("gold_bar_buy")  @db.Decimal(10, 2)
+  goldBarSell        Decimal   @map("gold_bar_sell") @db.Decimal(10, 2)
+
+  // Gold jewelry (ทองรูปพรรณ) — includes making charge (ค่ากำเหน็จ)
+  jewelryBuy         Decimal   @map("jewelry_buy")   @db.Decimal(10, 2)
+  jewelrySell        Decimal   @map("jewelry_sell")  @db.Decimal(10, 2)
+
+  // World reference prices at time of snapshot
+  spotGoldUsd        Decimal?  @map("spot_gold_usd") @db.Decimal(10, 4) // USD per troy oz
+  usdThb             Decimal?  @map("usd_thb")       @db.Decimal(8, 4)  // exchange rate
+
+  // Optional admin annotation
+  notes              String?
+
+  // Full original response — kept for debugging and source-swap safety
+  rawPayload         Json?     @map("raw_payload")
+
+  @@index([fetchedAt(sort: Desc)])
+  @@index([capturedAt(sort: Desc)])
+  @@map("gold_price_snapshot")
+}
+
+// ─── Daily Summary ────────────────────────────────────────────────────────────
+// One row per calendar day.
+// Written manually or computed from snapshots by a scheduled job.
+// Powers the plain-language summary card on the homepage.
+model DailySummary {
+  id           String   @id @default(uuid())
+  date         DateTime @unique @db.Date
+
+  // Human-readable headline: "ราคาทองปรับขึ้น 100 บาท"
+  titleTh      String   @map("title_th")
+
+  // 2–3 sentence plain-Thai explanation for non-traders
+  summaryTh    String   @map("summary_th")
+
+  // Optional: why the price moved today (news event, exchange rate shift, etc.)
+  reasonTh     String?  @map("reason_th")
+
+  // OHLC data derived from snapshots for the day (gold bar sell price)
+  openBarSell  Decimal? @map("open_bar_sell")  @db.Decimal(10, 2)
+  closeBarSell Decimal? @map("close_bar_sell") @db.Decimal(10, 2)
+  highBarSell  Decimal? @map("high_bar_sell")  @db.Decimal(10, 2)
+  lowBarSell   Decimal? @map("low_bar_sell")   @db.Decimal(10, 2)
+
+  generatedAt  DateTime @default(now()) @map("generated_at")
+
+  @@index([date(sort: Desc)])
+  @@map("daily_summary")
+}
+
+// ─── Article ──────────────────────────────────────────────────────────────────
+// Short articles in Thai. Body is stored as Markdown.
+// Category options: 'news' | 'guide' | 'explainer'
+model Article {
+  id            String    @id @default(uuid())
+  slug          String    @unique @db.VarChar(255)
+
+  titleTh       String    @map("title_th")
+  titleEn       String?   @map("title_en")
+  summaryTh     String    @map("summary_th")  // 1–2 sentence excerpt / teaser
+  bodyTh        String    @map("body_th")     // Full Markdown content
+
+  coverImageUrl String?   @map("cover_image_url")
+
+  // 'news' | 'guide' | 'explainer'
+  category      String    @db.VarChar(50)
+
+  isPublished   Boolean   @default(false) @map("is_published")
+  publishedAt   DateTime? @map("published_at")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt      @map("updated_at")
+
+  @@index([publishedAt(sort: Desc)])
+  @@index([isPublished, publishedAt(sort: Desc)])
+  @@index([slug])
+  @@map("article")
+}
+
+// ─── FAQ Item ─────────────────────────────────────────────────────────────────
+// Stored in DB so content can be managed without deploys.
+// Rendered on the homepage and /about.
+model FaqItem {
+  id          String   @id @default(uuid())
+
+  question    String                          // Thai question text
+  answer      String                          // Thai answer text
+  sortOrder   Int      @default(0) @map("sort_order")
+  isPublished Boolean  @default(true) @map("is_published")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  @@index([isPublished, sortOrder])
+  @@map("faq_item")
+}
+
+// ─── Site Settings ────────────────────────────────────────────────────────────
+// Single-row settings table (enforce with application logic, not DB constraint).
+// Admin-editable without code deploys.
+model SiteSettings {
+  id                 String   @id @default(uuid())
+
+  siteName           String   @map("site_name")
+  siteDescription    String   @map("site_description")
+  defaultCurrency    String   @default("THB") @map("default_currency") @db.VarChar(10)
+  contactEmail       String?  @map("contact_email")
+
+  // Ad slot placeholder text — swap for real ad-network code when ready
+  adBannerText       String?  @map("ad_banner_text")
+  adRectangleText    String?  @map("ad_rectangle_text")
+  adSidebarText      String?  @map("ad_sidebar_text")
+  adFooterText       String?  @map("ad_footer_text")
+
+  // Maintenance mode
+  maintenanceMode    Boolean  @default(false) @map("maintenance_mode")
+  maintenanceMessage String?  @map("maintenance_message")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt      @map("updated_at")
+
+  @@map("site_settings")
+}
+
+// ─── Source Status ────────────────────────────────────────────────────────────
+// One row per gold price source. Updated after every cron run.
+// Useful for monitoring: if status = 'error' for > 15 min, alert.
+model SourceStatus {
+  id                  String    @id @default(uuid())
+
+  sourceName          String    @unique @map("source_name") @db.VarChar(50)
+  displayName         String    @map("display_name")        // e.g. "สมาคมค้าทองคำ (YGTA)"
+
+  // 'ok' | 'error' | 'stale'
+  status              String    @db.VarChar(20)
+
+  lastCheckedAt       DateTime  @map("last_checked_at")
+  lastSuccessAt       DateTime? @map("last_success_at")
+  lastSuccessPrice    Decimal?  @map("last_success_price") @db.Decimal(10, 2)
+
+  errorMessage        String?   @map("error_message")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt      @map("updated_at")
+
+  @@map("source_status")
+}

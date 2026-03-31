@@ -1,0 +1,54 @@
+import { formatPrice } from '@/lib/utils/format'
+
+interface DailySummaryCardProps {
+  summaryTh: string
+  highBarSell?: number | null
+  lowBarSell?: number | null
+  openBarSell?: number | null
+  closeBarSell?: number | null
+}
+
+export function DailySummaryCard({
+  summaryTh,
+  highBarSell,
+  lowBarSell,
+  openBarSell,
+  closeBarSell,
+}: DailySummaryCardProps) {
+  const hasPriceData = highBarSell || lowBarSell || openBarSell || closeBarSell
+
+  return (
+    <section
+      aria-labelledby="daily-summary-heading"
+      className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4"
+    >
+      <h2 id="daily-summary-heading" className="text-base font-semibold text-gray-900">
+        สรุปราคาทองวันนี้
+      </h2>
+
+      {/* Plain-language summary */}
+      <p className="text-sm text-gray-700 leading-[1.8]">{summaryTh}</p>
+
+      {/* OHLC data row — only shown when data exists */}
+      {hasPriceData && (
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-gray-50">
+          {[
+            { label: 'เปิด',   value: openBarSell },
+            { label: 'ปิด',   value: closeBarSell },
+            { label: 'สูงสุด', value: highBarSell },
+            { label: 'ต่ำสุด', value: lowBarSell },
+          ].map(({ label, value }) =>
+            value != null ? (
+              <div key={label} className="text-center">
+                <dt className="text-xs text-gray-400">{label}</dt>
+                <dd className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
+                  ฿{formatPrice(value)}
+                </dd>
+              </div>
+            ) : null,
+          )}
+        </dl>
+      )}
+    </section>
+  )
+}
