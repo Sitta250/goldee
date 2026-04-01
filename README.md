@@ -251,7 +251,7 @@ Use **GitHub Actions** as the default scheduler for Vercel Hobby.
 This repo includes `.github/workflows/scheduler-fetch.yml` with:
 - `schedule`: every 5 minutes (`*/5 * * * *`)
 - `workflow_dispatch`: manual run support
-- `GET` to `YGTA_API_URL` (upstream source)
+- `GET` to `GOLDAPI_URL` with `x-access-token: GOLDAPI_API_KEY` (upstream source)
 - normalize payload into `source`, `asTime`, `seq`, prices, and `fetchedAt`
 - `POST` to `SCHEDULER_INGEST_URL` with `Authorization: Bearer ${CRON_SECRET}`
 - explicit failure on non-200 responses
@@ -262,7 +262,8 @@ This repo includes `.github/workflows/scheduler-fetch.yml` with:
 In GitHub: **Repository → Settings → Secrets and variables → Actions → New repository secret**
 
 Add:
-- `YGTA_API_URL` = `https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false`
+- `GOLDAPI_URL` = `https://www.goldapi.io/api/XAU/THB`
+- `GOLDAPI_API_KEY` = your GoldAPI API key
 - `SCHEDULER_INGEST_URL` = `https://your-domain.com/api/scheduler/ingest`
 - `CRON_SECRET` = same value as Vercel `CRON_SECRET`
 
@@ -277,9 +278,22 @@ Add:
 - In GitHub: **Actions → Scheduler Fetch → Run workflow**
 - Choose branch (usually `main`) and click **Run workflow**
 - Open the run logs:
-  - verify YGTA fetch `HTTP status: 200`
+  - verify GoldAPI fetch `HTTP status: 200`
   - verify ingest `HTTP status: 200`
   - inspect ingest JSON response body (`inserted` or `skipped`)
+
+#### GoldAPI normalization rules
+
+The workflow maps GoldAPI XAU/THB (per troy ounce) to local 96.5% per baht-weight values:
+- convert ounce -> baht-weight using `31.1034768 / 15.244`
+- apply 96.5% factor (`0.965`)
+- round to nearest 10 THB
+- derive spreads:
+  - `barBuy = barSell - 100`
+  - `ornamentBuy = barBuy - 900`
+  - `ornamentSell = barSell + 700`
+
+Reference mapper: `scripts/map-goldapi-to-ingest.js` and `lib/ingestion/providers/goldapi-mapping.ts`.
 
 ---
 
@@ -366,7 +380,7 @@ remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
 
 **Scheduler not running every 5 minutes**
 - Confirm external scheduler frequency is `*/5 * * * *`
-- Confirm `YGTA_API_URL` and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
+- Confirm `GOLDAPI_URL`, `GOLDAPI_API_KEY`, and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
 - Confirm ingest URL is `https://your-domain.com/api/scheduler/ingest`
 - Confirm header is `Authorization: Bearer <CRON_SECRET>` for ingest requests
 - `CRON_SECRET` must match Vercel environment variables

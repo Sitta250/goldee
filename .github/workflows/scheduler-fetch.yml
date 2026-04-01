@@ -9,14 +9,20 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch YGTA and ingest normalized payload
+      - name: Fetch GoldAPI and ingest normalized payload
         env:
-          YGTA_API_URL: ${{ secrets.YGTA_API_URL }}
+          GOLDAPI_URL: ${{ secrets.GOLDAPI_URL }}
+          GOLDAPI_API_KEY: ${{ secrets.GOLDAPI_API_KEY }}
           SCHEDULER_INGEST_URL: ${{ secrets.SCHEDULER_INGEST_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$YGTA_API_URL" ]; then
-            echo "Missing required secret: YGTA_API_URL"
+          if [ -z "$GOLDAPI_URL" ]; then
+            echo "Missing required secret: GOLDAPI_URL"
+            exit 1
+          fi
+
+          if [ -z "$GOLDAPI_API_KEY" ]; then
+            echo "Missing required secret: GOLDAPI_API_KEY"
             exit 1
           fi
 
@@ -30,73 +36,27 @@ jobs:
             exit 1
           fi
 
-          echo "1) Fetching upstream YGTA API..."
+          echo "1) Fetching upstream GoldAPI..."
           upstream_body_file="$(mktemp)"
           upstream_status_code="$(curl -sS -o "$upstream_body_file" -w "%{http_code}" \
             -X GET \
-            -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
             -H "Accept: application/json, text/plain, */*" \
-            -H "Accept-Language: th-TH,th;q=0.9,en;q=0.8" \
-            -H "Referer: https://www.goldtraders.or.th/" \
-            -H "Origin: https://www.goldtraders.or.th" \
-            "${YGTA_API_URL}")"
+            -H "x-access-token: ${GOLDAPI_API_KEY}" \
+            "${GOLDAPI_URL}")"
 
-          echo "YGTA HTTP status: ${upstream_status_code}"
-          echo "YGTA response preview (500):"
+          echo "GoldAPI HTTP status: ${upstream_status_code}"
+          echo "GoldAPI response preview (500):"
           tr '\n' ' ' < "$upstream_body_file" | cut -c1-500
           echo
 
           if [ "$upstream_status_code" -ne 200 ]; then
-            echo "YGTA call failed with non-200 response."
+            echo "GoldAPI call failed with non-200 response."
             exit 1
           fi
 
           echo "2) Parsing and normalizing payload..."
           normalized_payload_file="$(mktemp)"
-          node - "$upstream_body_file" "$normalized_payload_file" <<'NODE'
-          const fs = require('fs')
-
-          const inputPath = process.argv[2]
-          const outputPath = process.argv[3]
-          const raw = fs.readFileSync(inputPath, 'utf8')
-          const parsed = JSON.parse(raw)
-          const row = Array.isArray(parsed) ? parsed[0] : parsed
-
-          if (!row || typeof row !== 'object') {
-            throw new Error('YGTA payload is not an object')
-          }
-
-          const pick = (obj, aliases) => {
-            for (const key of aliases) {
-              if (Object.prototype.hasOwnProperty.call(obj, key)) return obj[key]
-            }
-            return undefined
-          }
-
-          const toNum = (v, field) => {
-            const num = typeof v === 'number' ? v : Number(String(v).replace(/,/g, '').trim())
-            if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}: ${JSON.stringify(v)}`)
-            return num
-          }
-
-          const payload = {
-            source: 'ygta',
-            asTime: String(pick(row, ['asTime', 'AsTime']) ?? '').trim(),
-            seq: String(pick(row, ['goldPriceID', 'GoldPriceID', 'pid', 'PID', 'PriceId']) ?? '').trim(),
-            barBuy: toNum(pick(row, ['bL_BuyPrice', 'BuyBar', 'buyBar', 'BarBuy']), 'barBuy'),
-            barSell: toNum(pick(row, ['bL_SellPrice', 'SellBar', 'sellBar', 'BarSell']), 'barSell'),
-            ornamentBuy: toNum(pick(row, ['oM965_BuyPrice', 'BuyOrnament', 'OrnamentBuy']), 'ornamentBuy'),
-            ornamentSell: toNum(pick(row, ['oM965_SellPrice', 'SellOrnament', 'OrnamentSell']), 'ornamentSell'),
-            fetchedAt: new Date().toISOString(),
-          }
-
-          if (!payload.asTime) throw new Error('Missing asTime in YGTA payload')
-          if (!payload.seq) throw new Error('Missing seq/goldPriceID in YGTA payload')
-          if (Number.isNaN(new Date(payload.asTime).getTime())) throw new Error(`Invalid asTime: ${payload.asTime}`)
-
-          fs.writeFileSync(outputPath, JSON.stringify(payload))
-          console.log(`Normalized seq=${payload.seq} asTime=${payload.asTime} barSell=${payload.barSell}`)
-          NODE
+          node scripts/map-goldapi-to-ingest.js "$upstream_body_file" "$normalized_payload_file"
 
           echo "3) Posting normalized payload to ingest endpoint..."
           ingest_response_file="$(mktemp)"
