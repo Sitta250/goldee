@@ -98,6 +98,7 @@ export class YgtaProvider implements GoldPriceProvider {
 
   async fetchLatestPrice(): Promise<NormalizedGoldPrice> {
     const url = getEndpointUrl()
+    console.info(`[ygta] fetch URL: ${url}`)
 
     // ── 1. Fetch ───────────────────────────────────────────────────────────────
     const controller = new AbortController()
@@ -113,10 +114,21 @@ export class YgtaProvider implements GoldPriceProvider {
       })
 
       if (!response.ok) {
+        const headersObject = Object.fromEntries(response.headers.entries())
+        const responsePreview = (await response.text()).slice(0, 500).replace(/\s+/g, ' ')
+        console.error(`[ygta] response status: ${response.status} ${response.statusText}`)
+        console.error(`[ygta] response headers: ${JSON.stringify(headersObject)}`)
+        console.error(`[ygta] response body preview (500): ${responsePreview}`)
         throw new Error(`HTTP ${response.status} ${response.statusText}`)
       }
 
+      const headersObject = Object.fromEntries(response.headers.entries())
+      console.info(`[ygta] response status: ${response.status} ${response.statusText}`)
+      console.info(`[ygta] response headers: ${JSON.stringify(headersObject)}`)
       responseText = await response.text()
+      console.info(
+        `[ygta] response body preview (500): ${responseText.slice(0, 500).replace(/\s+/g, ' ')}`,
+      )
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
         throw new Error(`YGTA request timed out after ${FETCH_TIMEOUT_MS / 1_000}s`)

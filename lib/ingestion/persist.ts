@@ -27,8 +27,9 @@ import type { GoldPriceSnapshot }   from '@/types/gold'
 export async function insertSnapshot(
   price:      NormalizedGoldPrice,
   sourceCode: string,
+  options?:   { fetchedAt?: Date },
 ): Promise<GoldPriceSnapshot> {
-  const now = new Date()
+  const now = options?.fetchedAt ?? new Date()
 
   const row = await db.goldPriceSnapshot.create({
     data: {

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
-// Canonical host-agnostic scheduler endpoint.
+// Legacy scheduler endpoint.
+// Kept for backward compatibility while GitHub Actions fetches upstream data and
+// posts normalized payloads to /api/scheduler/ingest.
 // Expected auth header: Authorization: Bearer <CRON_SECRET>
 export async function GET(req: NextRequest) {
   const start = Date.now()

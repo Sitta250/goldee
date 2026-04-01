@@ -51,6 +51,7 @@ model GoldPriceSnapshot {
 
   @@index([fetchedAt(sort: Desc)])
   @@index([capturedAt(sort: Desc)])
+  @@unique([source, announcementNumber, capturedAt])
   @@map("gold_price_snapshot")
 }
 

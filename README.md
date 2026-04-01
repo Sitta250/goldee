@@ -185,7 +185,7 @@ For this exact Next.js + Prisma + Neon setup, the cheapest reliable 5-minute pat
 Why this is the recommendation:
 - Vercel Hobby does **not** support a 5-minute cron schedule
 - Railway is reliable, but is typically a higher fixed monthly cost than Vercel Hobby + external scheduler
-- The app already has a host-agnostic secure endpoint: `/api/scheduler/fetch`
+- The app has secure scheduler endpoints: `/api/scheduler/ingest` (canonical) and `/api/scheduler/fetch` (legacy)
 
 ### Recommended setup: Vercel + external scheduler + Neon
 
@@ -214,7 +214,7 @@ Vercel → your project → **Settings → Environment Variables**:
 | `DATABASE_URL_UNPOOLED` | Neon direct URL (port 5432) | Migrations only |
 | `CRON_SECRET` | Random 32-byte hex string | Must match your local `.env` |
 | `GOLD_PROVIDER` | `ygta` | Use `mock` for preview deployments |
-| `GOLD_API_URL` | `https://www.goldtraders.or.th/UpdatePriceList.aspx` | YGTA endpoint |
+| `GOLD_API_URL` | `https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false` | YGTA endpoint |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-domain.vercel.app` | Used in sitemap and OG metadata |
 | `NEXT_PUBLIC_SITE_NAME` | `Goldee` | |
 
@@ -251,16 +251,19 @@ Use **GitHub Actions** as the default scheduler for Vercel Hobby.
 This repo includes `.github/workflows/scheduler-fetch.yml` with:
 - `schedule`: every 5 minutes (`*/5 * * * *`)
 - `workflow_dispatch`: manual run support
-- `GET` to `SCHEDULER_URL` with `Authorization: Bearer ${CRON_SECRET}`
+- `GET` to `YGTA_API_URL` (upstream source)
+- normalize payload into `source`, `asTime`, `seq`, prices, and `fetchedAt`
+- `POST` to `SCHEDULER_INGEST_URL` with `Authorization: Bearer ${CRON_SECRET}`
 - explicit failure on non-200 responses
-- response body logging for debugging
+- fetch + ingest response logging for debugging
 
 #### Add required GitHub secrets
 
 In GitHub: **Repository → Settings → Secrets and variables → Actions → New repository secret**
 
 Add:
-- `SCHEDULER_URL` = `https://your-domain.com/api/scheduler/fetch`
+- `YGTA_API_URL` = `https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false`
+- `SCHEDULER_INGEST_URL` = `https://your-domain.com/api/scheduler/ingest`
 - `CRON_SECRET` = same value as Vercel `CRON_SECRET`
 
 #### Enable the workflow
@@ -274,24 +277,28 @@ Add:
 - In GitHub: **Actions → Scheduler Fetch → Run workflow**
 - Choose branch (usually `main`) and click **Run workflow**
 - Open the run logs:
-  - verify `HTTP status: 200`
-  - inspect printed JSON response body (`inserted` or `skipped`)
+  - verify YGTA fetch `HTTP status: 200`
+  - verify ingest `HTTP status: 200`
+  - inspect ingest JSON response body (`inserted` or `skipped`)
 
 ---
 
 ## Scheduler Setup (5-minute fetch)
 
-- `/api/scheduler/fetch` is the canonical, host-agnostic endpoint
+- `/api/scheduler/ingest` is the canonical endpoint for scheduler pushes
+- `/api/scheduler/fetch` remains available as a legacy pull-based endpoint
 - `/api/cron/fetch-gold-price` remains supported as a legacy path
 - Auth uses: `Authorization: Bearer <CRON_SECRET>`
 - 5-minute schedule (`*/5 * * * *`) is fully compatible with this ingestion flow
 - For Vercel Hobby, use an external scheduler (GitHub Actions recommended)
 
-**Verify scheduler runs:**
-Trigger manually:
+**Verify scheduler ingest endpoint:**
 ```bash
-curl -H "Authorization: Bearer <CRON_SECRET>" \
-     https://your-domain.com/api/scheduler/fetch
+curl -X POST \
+     -H "Authorization: Bearer <CRON_SECRET>" \
+     -H "Content-Type: application/json" \
+     --data '{"source":"ygta","asTime":"2026-04-01T09:36:00","seq":"test-1","barBuy":49200,"barSell":49300,"ornamentBuy":48300,"ornamentSell":50000,"fetchedAt":"2026-04-01T09:36:30Z"}' \
+     https://your-domain.com/api/scheduler/ingest
 ```
 
 **Manual trigger in production:**
@@ -359,8 +366,9 @@ remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
 
 **Scheduler not running every 5 minutes**
 - Confirm external scheduler frequency is `*/5 * * * *`
-- Confirm scheduler URL is `https://your-domain.com/api/scheduler/fetch`
-- Confirm header is `Authorization: Bearer <CRON_SECRET>`
+- Confirm `YGTA_API_URL` and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
+- Confirm ingest URL is `https://your-domain.com/api/scheduler/ingest`
+- Confirm header is `Authorization: Bearer <CRON_SECRET>` for ingest requests
 - `CRON_SECRET` must match Vercel environment variables
 
 **Chart shows old data after price update**
@@ -385,7 +393,8 @@ app/
   robots.ts                       /robots.txt
   sitemap.ts                      /sitemap.xml
   api/
-    scheduler/fetch/              Canonical host-agnostic scheduler endpoint
+    scheduler/ingest/             Canonical scheduler ingest endpoint (auth-gated POST)
+    scheduler/fetch/              Legacy pull-based scheduler endpoint
     cron/fetch-gold-price/        Legacy cron endpoint (kept for compatibility)
     admin/run-fetch/              Manual trigger — auth-gated, any environment
     prices/history/               Client chart data (cached 4 min at edge)
