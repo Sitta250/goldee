@@ -81,7 +81,7 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
   let modelVersion:    string | null = null
 
   try {
-    const result1 = await summarizeWithGemini(bundle, false)
+    const result1 = await summarizeWithGemini(bundle, false, runWindow)
     modelVersion   = result1.modelVersion
 
     const check1 = validateOutput(result1.parsed, priceFacts, bundle)
@@ -89,7 +89,7 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
       payload = result1.parsed
     } else {
       // Retry with stricter prompt
-      const result2 = await summarizeWithGemini(bundle, true)
+      const result2 = await summarizeWithGemini(bundle, true, runWindow)
       const check2  = validateOutput(result2.parsed, priceFacts, bundle)
 
       if (check2.ok) {

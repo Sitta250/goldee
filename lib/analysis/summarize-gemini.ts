@@ -7,42 +7,77 @@
  * - No tool use / browsing / research — text generation only
  * - Returns strict JSON matching GoldAnalysisPayload
  * - Bilingual output: every text field has { th, en } variants
+ * - Morning (09:30 UTC+7) vs evening (18:00 UTC+7) prompt variants
  */
 
-import type { AnalysisInputBundle, GoldAnalysisPayload } from '@/types/analysis'
+import type {
+  AnalysisInputBundle,
+  GoldAnalysisPayload,
+  PriceFacts,
+  RunWindow,
+} from '@/types/analysis'
 
 const MODEL       = 'gemini-2.5-flash'
 const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models'
 const TIMEOUT_MS  = 60_000
 
-// ─── Prompt builder ───────────────────────────────────────────────────────────
-
-function buildSystemInstruction(): string {
-  return `You are a factual gold market summarizer.
-
-Rules (strictly enforced):
-1. Summarise ONLY the facts and evidence provided in the user message.
+const SHARED_RULES = `1. Summarise ONLY the facts and evidence provided in the user message.
 2. NEVER invent prices, dates, sources, experts, events, or statistics.
 3. NEVER give investment advice. Do NOT use words: buy, sell, recommend, should invest, profitable.
-4. Distinguish observed moves (already_affecting) from possible drivers (could_affect).
-5. Use conservative language when evidence is mixed or weak.
-6. Return ONLY valid JSON — no markdown, no code fences, no explanation outside the JSON.
-7. ALL text fields must contain BOTH Thai (th) and English (en) values.
-8. Echo the numeric values from the provided priceFacts exactly — do not alter them.`
+4. Return ONLY valid JSON — no markdown, no code fences, no explanation outside the JSON.
+5. ALL text fields must contain BOTH Thai (th) and English (en) values.
+6. Echo the numeric values from the provided priceFacts exactly — do not alter them.`
+
+// ─── Prompt builder ───────────────────────────────────────────────────────────
+
+function buildSystemInstruction(runWindow: RunWindow): string {
+  if (runWindow === 'morning') {
+    return `You are a financial market summarization engine.
+
+This is the MORNING (09:30 Thailand time, UTC+7) gold market briefing.
+
+Your job is to explain:
+- what happened overnight / into this morning
+- what is currently influencing gold
+- what to watch during today's session
+
+${SHARED_RULES}
+
+7. Do NOT describe the full trading day outcome (the day is not complete).
+8. Be cautious about causation. If uncertain, treat as potential influence and use impact_type "could_affect" with appropriate confidence.
+9. Distinguish observed moves (already_affecting) from possible drivers (could_affect).
+10. Use conservative language when evidence is mixed or weak.`
+  }
+
+  return `You are a financial market summarization engine.
+
+This is the EVENING (18:00 Thailand time, UTC+7) gold market wrap.
+
+Your job is to explain:
+- what happened over the session / day (using provided facts and evidence)
+- what appears to have influenced the move
+- how strong the evidence is for each influence
+
+${SHARED_RULES}
+
+7. Do NOT speculate about tomorrow or the next session.
+8. Be strict about causation: use "already_affecting" only when multiple reputable items clearly align; otherwise prefer "could_affect" with lower confidence.
+9. Distinguish strong evidence (already_affecting + higher confidence) from plausible but unproven influence (could_affect + medium/low confidence).
+10. If evidence is weak or conflicting, say so explicitly — do not guess.`
 }
 
-function buildUserPrompt(bundle: AnalysisInputBundle): string {
+function buildEvidenceSections(bundle: AnalysisInputBundle): string {
   const { priceFacts: pf, newsItems, expertItems } = bundle
 
   const newsBlock = newsItems.length > 0
     ? newsItems.map((n, i) =>
-        `[N${i + 1}] "${n.title}" — ${n.source} (${n.publishedAt.toISOString().slice(0, 10)})\n${n.summary}`
+        `[N${i + 1}] "${n.title}" — ${n.source} (${n.publishedAt.toISOString().slice(0, 10)})\n${n.summary}`,
       ).join('\n\n')
     : 'No recent gold news available.'
 
   const expertBlock = expertItems.length > 0
     ? expertItems.map((e, i) =>
-        `[E${i + 1}] ${e.expert} (${e.source}, ${e.publishedAt.toISOString().slice(0, 10)}): "${e.quote}"`
+        `[E${i + 1}] ${e.expert} (${e.source}, ${e.publishedAt.toISOString().slice(0, 10)}): "${e.quote}"`,
       ).join('\n\n')
     : 'No expert commentary available.'
 
@@ -54,17 +89,15 @@ Intraday range: ${pf.intraday_range_abs.toFixed(2)} THB
 Direction today: ${pf.direction_today}
 Direction this week: ${pf.direction_week}
 
-=== RECENT GOLD NEWS (max 12 items, ranked by relevance) ===
+=== NEWS ITEMS (last ~24–48h window as ranked, max 12) ===
 ${newsBlock}
 
 === EXPERT COMMENTARY (allowlist sources only, max 5 items) ===
-${expertBlock}
+${expertBlock}`
+}
 
-=== REQUIRED OUTPUT FORMAT (strict JSON, no markdown) ===
-Return EXACTLY this structure. Every string field must have "th" (Thai) and "en" (English).
-Word limits per language: price_analysis.summary ≤80 words, each market_drivers[].summary ≤50 words, expert_view.summary ≤70 words.
-
-{
+function buildJsonSchemaExample(pf: PriceFacts): string {
+  return `{
   "price_analysis": {
     "headline": { "th": "...", "en": "..." },
     "summary":  { "th": "...", "en": "..." },
@@ -98,6 +131,89 @@ Word limits per language: price_analysis.summary ≤80 words, each market_driver
     "en": "AI-generated summary based on aggregated market data and news sources. Not investment advice."
   }
 }`
+}
+
+function buildMorningRequirements(): string {
+  return `=== MORNING BRIEFING REQUIREMENTS ===
+
+Generate a concise MORNING gold market briefing (Thai + global context).
+
+PRICE ANALYSIS
+- Focus on overnight / early-session movement vs prior close context using provided facts.
+- Mention direction and magnitude clearly; do not speculate about full-day outcome.
+- You may briefly note intraday range from facts if it helps context.
+
+MARKET DRIVERS (2–4 themes)
+- Identify key themes currently influencing gold.
+- Map evidence to schema:
+  - Strong current influence → impact_type "already_affecting" with confidence high/medium.
+  - Possible influence today → impact_type "could_affect" with confidence medium.
+  - Uncertain → impact_type "could_affect" with confidence "low" and explicit caution in text.
+
+FORWARD LOOKING (no separate JSON field)
+- Weave "what to watch today" (macro, Fed/yields/dollar, geopolitical risks) into market_drivers summaries and/or expert_view.summary — only if supported by input items.
+
+EXPERT VIEW
+- Summarize current sentiment / early positioning from provided expert items only.
+
+TONE: neutral, concise, no hype.
+
+Word limits per language: price_analysis.summary ≤80 words, each market_drivers[].summary ≤50 words, expert_view.summary ≤70 words.
+
+source_count = integer count of provided news items (N1…Nn) that support that theme; do not invent.`
+}
+
+function buildEveningRequirements(): string {
+  return `=== EVENING WRAP REQUIREMENTS ===
+
+Generate a concise EVENING gold market wrap (Thai + global context).
+
+PRICE ANALYSIS
+- Describe the day's move using provided price facts (direction and magnitude).
+- If intraday range in facts is meaningful, you may reference it briefly; do not invent OHLC beyond facts.
+
+MARKET DRIVERS (2–4 themes)
+Map evidence strength to schema:
+- Multiple reputable items clearly align on a theme → impact_type "already_affecting", confidence "high" or "medium".
+- Plausible but not proven → impact_type "could_affect", confidence "medium".
+- Weak / conflicting / unclear → impact_type "could_affect", confidence "low" and state uncertainty in text.
+Do not guess.
+
+MORNING VS EVENING (optional)
+- If news/expert text clearly contrasts earlier expectations vs today's outcome, mention briefly in price_analysis.summary or expert_view.summary. Do not invent a morning forecast you were not given.
+
+EXPERT VIEW
+- End-of-day sentiment: use overall_trend and consensus_strength to reflect whether sentiment strengthened, weakened, or stayed mixed vs the evidence.
+
+TONE: factual, no hype. Do NOT speculate about tomorrow.
+
+Word limits per language: price_analysis.summary ≤80 words, each market_drivers[].summary ≤50 words, expert_view.summary ≤70 words.
+
+source_count = integer count of provided news items (N1…Nn) that support that theme; do not invent.`
+}
+
+function buildUserPrompt(bundle: AnalysisInputBundle, runWindow: RunWindow): string {
+  const pf = bundle.priceFacts
+  const taskLine =
+    runWindow === 'morning'
+      ? 'Generate a morning gold market briefing.'
+      : 'Generate an evening gold market wrap.'
+
+  const requirements =
+    runWindow === 'morning'
+      ? buildMorningRequirements()
+      : buildEveningRequirements()
+
+  return `${taskLine}
+
+${buildEvidenceSections(bundle)}
+
+${requirements}
+
+=== REQUIRED OUTPUT FORMAT (strict JSON, no markdown) ===
+Return EXACTLY this structure. Every string field must have "th" (Thai) and "en" (English).
+
+${buildJsonSchemaExample(pf)}`
 }
 
 // ─── Gemini API call ──────────────────────────────────────────────────────────
@@ -171,12 +287,15 @@ export interface SummarizeResult {
  */
 export async function summarizeWithGemini(
   bundle:         AnalysisInputBundle,
-  stricterPrompt = false,
+  stricterPrompt: boolean,
+  runWindow:      RunWindow,
 ): Promise<SummarizeResult> {
-  const systemInstruction = buildSystemInstruction()
-  const userPrompt        = stricterPrompt
-    ? buildUserPrompt(bundle) + '\n\nIMPORTANT: Return ONLY the JSON object. No additional text.'
-    : buildUserPrompt(bundle)
+  const systemInstruction = buildSystemInstruction(runWindow)
+  let userPrompt            = buildUserPrompt(bundle, runWindow)
+
+  if (stricterPrompt) {
+    userPrompt += '\n\nIMPORTANT: Return ONLY the JSON object. No additional text.'
+  }
 
   const raw    = await callGeminiApi(userPrompt, systemInstruction)
   const parsed = parseJsonResponse(raw)
