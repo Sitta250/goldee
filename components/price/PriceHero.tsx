@@ -41,14 +41,14 @@ export function PriceHero({ data }: PriceHeroProps) {
           <PriceCard
             label="ทองคำแท่ง"
             sublabel="96.5%"
-            value={snapshot.goldBarSell}
-            type="sell"
+            value={snapshot.goldBarBuy}
+            type="buy"
           />
           <PriceCard
             label="ทองคำแท่ง"
             sublabel="96.5%"
-            value={snapshot.goldBarBuy}
-            type="buy"
+            value={snapshot.goldBarSell}
+            type="sell"
           />
         </div>
 
@@ -57,14 +57,14 @@ export function PriceHero({ data }: PriceHeroProps) {
           <PriceCard
             label="ทองรูปพรรณ"
             sublabel="96.5%"
-            value={snapshot.jewelrySell}
-            type="sell"
+            value={snapshot.jewelryBuy}
+            type="buy"
           />
           <PriceCard
             label="ทองรูปพรรณ"
             sublabel="96.5%"
-            value={snapshot.jewelryBuy}
-            type="buy"
+            value={snapshot.jewelrySell}
+            type="sell"
           />
         </div>
       </div>

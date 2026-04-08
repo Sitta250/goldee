@@ -1,0 +1,289 @@
+You should build the “Today Gold Price Analysis” section as a pipeline, not as one giant LLM prompt.
+
+GOAL
+
+Generate 3 sections:
+1. price today vs yesterday / past week
+2. global news that could affect or is affecting gold
+3. what experts are saying about the overall trend
+
+RULES
+
+- Never let the LLM invent prices, dates, sources, or expert opinions.
+- All numeric price comparisons must be computed by backend code, not guessed by the model.
+- The LLM only summarizes source material that my backend already fetched.
+- The LLM must return strict JSON.
+- If source coverage is weak, say so instead of pretending confidence.
+- Keep the tone neutral, short, and market-focused.
+- Do not output trading advice.
+- Do not say “buy” or “sell”.
+- Do not claim causation unless the source clearly states it.
+- Separate “observed move” from “possible drivers”.
+
+RECOMMENDED STACK
+
+Price data:
+- source A: Thai gold price source
+- source B: backup Thai/dealer source
+- store snapshots every few minutes
+
+News data:
+- use GDELT or another news API / RSS pipeline
+- query last 24h and last 7d
+- keywords:
+  - gold
+  - spot gold
+  - bullion
+  - XAUUSD
+  - Federal Reserve OR Fed
+  - US Treasury yields
+  - inflation
+  - CPI
+  - PCE
+  - dollar index OR DXY
+  - central bank gold buying
+  - geopolitics
+  - tariffs
+  - recession fears
+
+Expert commentary:
+- ingest from a small allowlist only
+- examples:
+  - Reuters market wrap
+  - Bloomberg / CNBC commodities commentary
+  - World Gold Council
+  - major bank / broker research if licensed
+- save headline, source, publish time, url, snippet, and extracted quote
+- do not scrape random blogs and call them “experts”
+
+LLM CHOICE
+
+Start with one cheap/free summarization model and one fallback:
+- primary: Gemini Flash
+- fallback: Groq-hosted open model
+
+Do not use a big expensive reasoning model for every page load.
+Use a cheaper summarization model because:
+- the hard facts come from code
+- the model only compresses evidence into a readable paragraph
+- this reduces hallucination and cost
+
+HIGH-LEVEL PIPELINE
+
+STEP 1 — COMPUTE PRICE FACTS IN CODE
+
+Input:
+- today_open
+- latest_price
+- yesterday_close
+- price_7d_ago
+- daily_high
+- daily_low
+- update_time
+
+Compute:
+- change_vs_yesterday_abs
+- change_vs_yesterday_pct
+- change_vs_7d_abs
+- change_vs_7d_pct
+- intraday_range_abs
+- direction_today = up/down/flat
+- direction_week = up/down/flat
+
+STEP 2 — FETCH NEWS
+
+Fetch articles from the last 24h and 7d with metadata:
+- title
+- source
+- published_at
+- url
+- snippet/body if available
+
+Then rank them with code before sending to the LLM:
+- higher score if multiple reputable sources mention the same theme
+- higher score if article is recent
+- higher score if article directly mentions gold, Treasury yields, Fed, inflation, dollar, central banks, or geopolitical risk
+- lower score if duplicate / opinion spam / low-authority site
+
+Keep top 8 to 15 items max.
+
+STEP 3 — FETCH EXPERT COMMENTARY
+
+Collect only from an allowlist.
+Extract:
+- source
+- analyst/expert name if present
+- quote/snippet
+- published_at
+- url
+
+Keep top 3 to 8 items max.
+
+STEP 4 — LLM SUMMARIZATION
+
+Give the LLM:
+- computed price facts
+- ranked news items
+- ranked expert commentary
+- strict output schema
+
+Do not let the model browse on its own.
+Do not ask it to “research”.
+Ask it to summarize only the provided evidence.
+
+OUTPUT JSON SCHEMA
+
+{
+  "price_analysis": {
+    "headline": "string",
+    "summary": "string",
+    "vs_yesterday": {
+      "direction": "up|down|flat",
+      "absolute_change": number,
+      "percent_change": number
+    },
+    "vs_7d": {
+      "direction": "up|down|flat",
+      "absolute_change": number,
+      "percent_change": number
+    }
+  },
+  "market_drivers": [
+    {
+      "theme": "string",
+      "impact_type": "already_affecting|could_affect",
+      "summary": "string",
+      "confidence": "low|medium|high",
+      "source_count": number
+    }
+  ],
+  "expert_view": {
+    "overall_trend": "bullish|bearish|mixed|unclear",
+    "summary": "string",
+    "consensus_strength": "low|medium|high"
+  },
+  "disclaimer": "string"
+}
+
+SYSTEM PROMPT
+
+You are a financial market summarization engine.
+Summarize only the facts provided in the input.
+Do not invent any prices, sources, expert names, or macro events.
+Do not provide investment advice.
+Do not use hype language.
+Be conservative: if evidence is mixed, say mixed.
+Be explicit when a driver is only a potential influence rather than a confirmed cause.
+Return valid JSON only.
+
+USER PROMPT TEMPLATE
+
+Generate a concise gold market summary for a Thai audience.
+
+PRICE FACTS
+{{PRICE_FACTS_JSON}}
+
+NEWS ITEMS
+{{NEWS_ITEMS_JSON}}
+
+EXPERT COMMENTARY
+{{EXPERT_ITEMS_JSON}}
+
+REQUIREMENTS
+- Use the computed price facts exactly as given.
+- “already_affecting” only if the source directly links the move to the event or if several high-quality sources align on the same driver.
+- Otherwise use “could_affect”.
+- Keep price_analysis.summary under 80 words.
+- Keep each market_drivers.summary under 50 words.
+- Keep expert_view.summary under 70 words.
+- If expert commentary is sparse or conflicting, set overall_trend to “mixed” or “unclear”.
+- Return valid JSON only.
+
+BACKEND GUARDRAILS
+
+Before showing the result:
+- reject output if JSON is invalid
+- reject output if any number differs from backend-computed values
+- reject output if it mentions a source/expert not present in the input
+- reject output if it contains buy/sell/investment advice
+- reject output if it uses words like “definitely”, “certainly”, “guaranteed”
+
+CACHE STRATEGY
+
+Do not call the LLM on every page view.
+Instead:
+- recompute price facts every data refresh
+- refresh news ingestion every 15 to 30 min
+- run summarization every 15 to 60 min, or when:
+  - price moves beyond threshold
+  - a new high-score news cluster appears
+  - a major scheduled macro event lands
+
+Save generated summaries with:
+- generated_at
+- based_on_price_timestamp
+- based_on_news_window
+- model_name
+- model_version
+- input_hash
+
+UI COPY LOGIC
+
+Section 1: Today vs Yesterday / Week
+- one short paragraph from computed facts
+
+Section 2: Potential Market Drivers
+- 2 to 4 bullets generated from market_drivers
+
+Section 3: Expert View
+- one short paragraph from expert_view
+
+Always show:
+- last updated time
+- source count
+- “AI-generated summary based on aggregated market data and news sources”
+
+WHAT NOT TO DO
+
+Bad:
+- asking the model “why is gold moving today?” with no source bundle
+- scraping random tweets and calling it expert analysis
+- mixing Thai retail gold price with global spot price without labeling
+- generating commentary live on every request
+- letting the model invent causal explanations
+
+Good:
+- code computes numbers
+- backend curates evidence
+- model compresses evidence
+- UI shows timestamps and source transparency
+
+MINIMAL PSEUDOCODE
+
+function buildGoldAnalysis() {
+  const priceFacts = computePriceFacts(currentPrice, yesterdayClose, price7dAgo, high, low);
+
+  const news = fetchNews();
+  const rankedNews = rankAndDedupNews(news).slice(0, 12);
+
+  const experts = fetchExpertCommentary();
+  const rankedExperts = rankExperts(experts).slice(0, 5);
+
+  const promptInput = {
+    priceFacts,
+    newsItems: rankedNews,
+    expertItems: rankedExperts
+  };
+
+  const llmJson = callSummarizerModel(promptInput);
+
+  validateOutput(llmJson, priceFacts, rankedNews, rankedExperts);
+
+  return llmJson;
+}
+
+FINAL RECOMMENDATION
+
+Use an LLM only as the last-mile writer.
+Do not make it the analyst, the calculator, and the data source at the same time.
+That design is weak and will embarrass you in production.
