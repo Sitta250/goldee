@@ -19,7 +19,10 @@ import type {
 
 const MODEL       = 'gemini-2.5-flash'
 const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models'
-const TIMEOUT_MS  = 60_000
+const TIMEOUT_MS  = 90_000
+
+/** Bilingual JSON payload can be large; 2048 was truncating mid-JSON. */
+const MAX_OUTPUT_TOKENS = 8192
 
 const SHARED_RULES = `1. Summarise ONLY the facts and evidence provided in the user message.
 2. NEVER invent prices, dates, sources, experts, events, or statistics.
@@ -221,6 +224,7 @@ ${buildJsonSchemaExample(pf)}`
 interface GeminiResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> }
+    finishReason?: string
   }>
 }
 
@@ -235,7 +239,7 @@ async function callGeminiApi(prompt: string, systemInstruction: string): Promise
     generation_config: {
       temperature:      0.2,   // low randomness for factual tasks
       top_p:            0.8,
-      max_output_tokens: 2048,
+      max_output_tokens: MAX_OUTPUT_TOKENS,
       response_mime_type: 'application/json',
     },
     safety_settings: [
@@ -263,8 +267,15 @@ async function callGeminiApi(prompt: string, systemInstruction: string): Promise
     }
 
     const data: GeminiResponse = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const candidate = data.candidates?.[0]
+    const text      = candidate?.content?.parts?.[0]?.text ?? ''
     if (!text) throw new Error('Gemini returned empty response')
+
+    if (candidate?.finishReason === 'MAX_TOKENS') {
+      throw new Error(
+        'Gemini hit MAX_TOKENS (response truncated). Increase MAX_OUTPUT_TOKENS or shorten prompts.',
+      )
+    }
 
     return text
   } finally {
