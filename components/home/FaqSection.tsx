@@ -1,3 +1,7 @@
+'use client'
+
+import { useLanguage } from '@/contexts/LanguageContext'
+import { UI, s }       from '@/lib/i18n/ui-strings'
 import type { FaqItemDisplay } from '@/types/faq'
 
 interface FaqSectionProps {
@@ -5,15 +9,17 @@ interface FaqSectionProps {
 }
 
 export function FaqSection({ items }: FaqSectionProps) {
+  const { lang } = useLanguage()
+
   return (
     <section aria-labelledby="faq-heading" className="space-y-4">
       <h2 id="faq-heading" className="text-xl font-semibold text-gray-900">
-        คำถามที่พบบ่อย
+        {s(UI.homepage.faqHeading, lang)}
       </h2>
 
       {items.length === 0 ? (
         <p className="text-sm text-gray-400 py-4">
-          ยังไม่มีคำถาม-คำตอบในขณะนี้
+          {s(UI.homepage.faqEmpty, lang)}
         </p>
       ) : (
         <dl className="space-y-2">

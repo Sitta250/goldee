@@ -1,3 +1,7 @@
+'use client'
+
+import { useLanguage } from '@/contexts/LanguageContext'
+import { UI, s }       from '@/lib/i18n/ui-strings'
 import { formatPrice } from '@/lib/utils/format'
 
 interface DailySummaryCardProps {
@@ -15,7 +19,15 @@ export function DailySummaryCard({
   openBarSell,
   closeBarSell,
 }: DailySummaryCardProps) {
+  const { lang } = useLanguage()
   const hasPriceData = highBarSell || lowBarSell || openBarSell || closeBarSell
+
+  const ohlcLabels = [
+    { key: 'open',  labelObj: UI.dailySummary.open,  value: openBarSell  },
+    { key: 'close', labelObj: UI.dailySummary.close, value: closeBarSell },
+    { key: 'high',  labelObj: UI.dailySummary.high,  value: highBarSell  },
+    { key: 'low',   labelObj: UI.dailySummary.low,   value: lowBarSell   },
+  ]
 
   return (
     <section
@@ -23,24 +35,19 @@ export function DailySummaryCard({
       className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4"
     >
       <h2 id="daily-summary-heading" className="text-base font-semibold text-gray-900">
-        สรุปราคาทองวันนี้
+        {s(UI.dailySummary.heading, lang)}
       </h2>
 
-      {/* Plain-language summary */}
+      {/* Plain-language summary — Thai only (content is Thai text from DB) */}
       <p className="text-sm text-gray-700 leading-[1.8]">{summaryTh}</p>
 
       {/* OHLC data row — only shown when data exists */}
       {hasPriceData && (
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-gray-50">
-          {[
-            { label: 'เปิด',   value: openBarSell },
-            { label: 'ปิด',   value: closeBarSell },
-            { label: 'สูงสุด', value: highBarSell },
-            { label: 'ต่ำสุด', value: lowBarSell },
-          ].map(({ label, value }) =>
+          {ohlcLabels.map(({ key, labelObj, value }) =>
             value != null ? (
-              <div key={label} className="text-center">
-                <dt className="text-xs text-gray-400">{label}</dt>
+              <div key={key} className="text-center">
+                <dt className="text-xs text-gray-400">{s(labelObj, lang)}</dt>
                 <dd className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
                   ฿{formatPrice(value)}
                 </dd>

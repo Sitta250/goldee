@@ -1,135 +1,123 @@
-You should build the “Today Gold Price Analysis” section as a pipeline, not as one giant LLM prompt.
+Today Gold Analysis - Claude Implementation Plan
 
 GOAL
 
-Generate 3 sections:
-1. price today vs yesterday / past week
-2. global news that could affect or is affecting gold
-3. what experts are saying about the overall trend
+Implement a production-safe "Today Gold Analysis" feature with:
+- model: gemini-2.5-flash
+- secret: GEMINI_API_KEY only
+- language: Thai and English with toggle
+- schedule: generate twice daily at 09:30 and 18:00 (UTC+7)
+- content split:
+  - Thai section = recent Thai gold price movement recap
+  - Global section = major world events + expert commentary affecting gold
 
-RULES
+NON-NEGOTIABLE RULES
 
-- Never let the LLM invent prices, dates, sources, or expert opinions.
-- All numeric price comparisons must be computed by backend code, not guessed by the model.
-- The LLM only summarizes source material that my backend already fetched.
-- The LLM must return strict JSON.
-- If source coverage is weak, say so instead of pretending confidence.
-- Keep the tone neutral, short, and market-focused.
-- Do not output trading advice.
-- Do not say “buy” or “sell”.
-- Do not claim causation unless the source clearly states it.
-- Separate “observed move” from “possible drivers”.
+- Never invent prices, dates, sources, experts, or events.
+- All numeric price comparisons must be computed by backend code.
+- LLM summarizes only backend-curated evidence.
+- LLM output must be strict JSON matching schema.
+- If evidence is weak/conflicting, output conservative language and low confidence.
+- No trading advice. Never use buy/sell/investment recommendation language.
+- Separate observed move vs possible drivers.
+- Do not claim causation unless sources clearly support it.
 
-RECOMMENDED STACK
+IMPLEMENTATION PHASES
 
-Price data:
-- source A: Thai gold price source
-- source B: backup Thai/dealer source
-- store snapshots every few minutes
+PHASE 1 - DATA MODEL + TYPES
 
-News data:
-- use GDELT or another news API / RSS pipeline
-- query last 24h and last 7d
-- keywords:
-  - gold
-  - spot gold
-  - bullion
-  - XAUUSD
-  - Federal Reserve OR Fed
-  - US Treasury yields
-  - inflation
-  - CPI
-  - PCE
-  - dollar index OR DXY
-  - central bank gold buying
-  - geopolitics
-  - tariffs
-  - recession fears
+- Extend persistence for structured analysis payload + metadata:
+  - generated_at
+  - based_on_price_timestamp
+  - based_on_news_window
+  - model_name
+  - model_version
+  - input_hash
+- Prefer one structured JSON payload for analysis content.
+- Update TypeScript types for query-to-UI contract.
 
-Expert commentary:
-- ingest from a small allowlist only
-- examples:
-  - Reuters market wrap
-  - Bloomberg / CNBC commodities commentary
-  - World Gold Council
-  - major bank / broker research if licensed
-- save headline, source, publish time, url, snippet, and extracted quote
-- do not scrape random blogs and call them “experts”
+PHASE 2 - DETERMINISTIC ANALYSIS SERVICES
 
-LLM CHOICE
+Create services under lib/analysis/:
+- compute-price-facts.ts
+- fetch-global-news.ts
+- rank-news.ts
+- fetch-expert-commentary.ts
+- rank-experts.ts
+- build-input-bundle.ts
 
-Start with one cheap/free summarization model and one fallback:
-- primary: Gemini Flash
-- fallback: Groq-hosted open model
-
-Do not use a big expensive reasoning model for every page load.
-Use a cheaper summarization model because:
-- the hard facts come from code
-- the model only compresses evidence into a readable paragraph
-- this reduces hallucination and cost
-
-HIGH-LEVEL PIPELINE
-
-STEP 1 — COMPUTE PRICE FACTS IN CODE
-
-Input:
-- today_open
-- latest_price
-- yesterday_close
-- price_7d_ago
-- daily_high
-- daily_low
-- update_time
-
-Compute:
-- change_vs_yesterday_abs
-- change_vs_yesterday_pct
-- change_vs_7d_abs
-- change_vs_7d_pct
+Price facts (code only):
+- change_vs_yesterday_abs/pct + direction
+- change_vs_7d_abs/pct + direction
 - intraday_range_abs
-- direction_today = up/down/flat
-- direction_week = up/down/flat
 
-STEP 2 — FETCH NEWS
+Ranking behavior:
+- boost: recency, reputable source, theme consensus
+- penalize: duplicates, low-authority sources, opinion spam
 
-Fetch articles from the last 24h and 7d with metadata:
-- title
-- source
-- published_at
-- url
-- snippet/body if available
+PHASE 3 - GEMINI SUMMARIZATION + VALIDATION
 
-Then rank them with code before sending to the LLM:
-- higher score if multiple reputable sources mention the same theme
-- higher score if article is recent
-- higher score if article directly mentions gold, Treasury yields, Fed, inflation, dollar, central banks, or geopolitical risk
-- lower score if duplicate / opinion spam / low-authority site
+Create summarize-gemini.ts:
+- model = gemini-2.5-flash
+- uses GEMINI_API_KEY
+- no browsing/research/tool calls
+- JSON output only
 
-Keep top 8 to 15 items max.
+Create validate-output.ts:
+- schema validation
+- numeric equality checks against backend facts
+- source/expert allowlist checks
+- banned advice language checks
+- overconfidence phrase checks
 
-STEP 3 — FETCH EXPERT COMMENTARY
+Failure policy:
+- retry once with stricter instruction
+- if still invalid, persist safe fallback payload with insufficient-evidence wording
 
-Collect only from an allowlist.
-Extract:
-- source
-- analyst/expert name if present
-- quote/snippet
-- published_at
-- url
+PHASE 4 - SCHEDULER INTEGRATION
 
-Keep top 3 to 8 items max.
+- Add dedicated analysis scheduler route.
+- Reuse existing cron auth/security pattern.
+- Configure triggers for 09:30 and 18:00 (UTC+7).
+- Ensure idempotent processing per run window.
+- Log success/failure with enough context for troubleshooting.
 
-STEP 4 — LLM SUMMARIZATION
+PHASE 5 - QUERY + HOMEPAGE WIRING
 
-Give the LLM:
-- computed price facts
-- ranked news items
-- ranked expert commentary
-- strict output schema
+- Add query to fetch latest valid persisted analysis.
+- Wire into homepage aggregation query.
+- UI must render cached persisted analysis only (no live LLM call per page request).
 
-Do not let the model browse on its own.
-Do not ask it to “research”.
-Ask it to summarize only the provided evidence.
+PHASE 6 - GLOBAL TH/EN TOGGLE ACROSS UI
+
+- Create LanguageContext (pattern similar to existing CurrencyContext).
+- Mount provider in root layout.
+- Add LanguageToggle in header.
+- Apply language dictionary mapping across primary UI text.
+- Ensure analysis card renders in currently selected language.
+
+PHASE 7 - ANALYSIS UI STRUCTURE
+
+Render two explicit sections:
+1) Thai Gold Today
+   - short paragraph focused on recent Thai local movement
+2) Global Drivers
+   - 2-4 bullets for major world events + expert trend
+
+Always show:
+- last updated timestamp
+- source count
+- label: AI-generated summary based on aggregated market data and news sources
+
+PHASE 8 - TESTING + QUALITY
+
+Add tests for:
+- deterministic price math invariants
+- schema and guardrail rejection behavior
+- bilingual rendering and toggle behavior
+- scheduler timing and latest-analysis selection behavior
+
+Run lint/type checks and fix issues before merge.
 
 OUTPUT JSON SCHEMA
 
@@ -165,125 +153,46 @@ OUTPUT JSON SCHEMA
   "disclaimer": "string"
 }
 
-SYSTEM PROMPT
+PROMPT RULES FOR GEMINI
 
-You are a financial market summarization engine.
-Summarize only the facts provided in the input.
-Do not invent any prices, sources, expert names, or macro events.
-Do not provide investment advice.
-Do not use hype language.
-Be conservative: if evidence is mixed, say mixed.
-Be explicit when a driver is only a potential influence rather than a confirmed cause.
-Return valid JSON only.
-
-USER PROMPT TEMPLATE
-
-Generate a concise gold market summary for a Thai audience.
-
-PRICE FACTS
-{{PRICE_FACTS_JSON}}
-
-NEWS ITEMS
-{{NEWS_ITEMS_JSON}}
-
-EXPERT COMMENTARY
-{{EXPERT_ITEMS_JSON}}
-
-REQUIREMENTS
-- Use the computed price facts exactly as given.
-- “already_affecting” only if the source directly links the move to the event or if several high-quality sources align on the same driver.
-- Otherwise use “could_affect”.
-- Keep price_analysis.summary under 80 words.
-- Keep each market_drivers.summary under 50 words.
-- Keep expert_view.summary under 70 words.
-- If expert commentary is sparse or conflicting, set overall_trend to “mixed” or “unclear”.
+- Use computed price values exactly as provided.
+- Use already_affecting only with direct/strong evidence.
+- Otherwise use could_affect.
+- Keep summaries concise:
+  - price_analysis.summary <= 80 words
+  - each market_drivers.summary <= 50 words
+  - expert_view.summary <= 70 words
 - Return valid JSON only.
 
-BACKEND GUARDRAILS
+ACCEPTANCE CRITERIA
 
-Before showing the result:
-- reject output if JSON is invalid
-- reject output if any number differs from backend-computed values
-- reject output if it mentions a source/expert not present in the input
-- reject output if it contains buy/sell/investment advice
-- reject output if it uses words like “definitely”, “certainly”, “guaranteed”
+- Works with only GEMINI_API_KEY.
+- Analysis generation runs twice daily (09:30 and 18:00 UTC+7).
+- Homepage shows latest valid persisted analysis.
+- Thai/English toggle works across primary UI.
+- Thai section focuses on local recent price movement.
+- Global section focuses on major world events and expert signals.
+- No fabricated values/sources/experts in output.
+- Guardrails reject invalid/harmful outputs before display.
 
-CACHE STRATEGY
+ANTI-PATTERNS TO AVOID
 
-Do not call the LLM on every page view.
-Instead:
-- recompute price facts every data refresh
-- refresh news ingestion every 15 to 30 min
-- run summarization every 15 to 60 min, or when:
-  - price moves beyond threshold
-  - a new high-score news cluster appears
-  - a major scheduled macro event lands
-
-Save generated summaries with:
-- generated_at
-- based_on_price_timestamp
-- based_on_news_window
-- model_name
-- model_version
-- input_hash
-
-UI COPY LOGIC
-
-Section 1: Today vs Yesterday / Week
-- one short paragraph from computed facts
-
-Section 2: Potential Market Drivers
-- 2 to 4 bullets generated from market_drivers
-
-Section 3: Expert View
-- one short paragraph from expert_view
-
-Always show:
-- last updated time
-- source count
-- “AI-generated summary based on aggregated market data and news sources”
-
-WHAT NOT TO DO
-
-Bad:
-- asking the model “why is gold moving today?” with no source bundle
-- scraping random tweets and calling it expert analysis
-- mixing Thai retail gold price with global spot price without labeling
-- generating commentary live on every request
-- letting the model invent causal explanations
-
-Good:
-- code computes numbers
-- backend curates evidence
-- model compresses evidence
-- UI shows timestamps and source transparency
+- Running LLM summarization on every page request.
+- Asking model for reasons without evidence bundle.
+- Treating random blogs/social posts as expert sources.
+- Mixing Thai retail and global spot without explicit labels.
+- Letting model infer causality without source support.
 
 MINIMAL PSEUDOCODE
 
-function buildGoldAnalysis() {
-  const priceFacts = computePriceFacts(currentPrice, yesterdayClose, price7dAgo, high, low);
+function buildDailyGoldAnalysis() {
+  const priceFacts = computePriceFacts();
+  const newsItems = rankAndDedupNews(fetchGlobalNews()).slice(0, 12);
+  const expertItems = rankExperts(fetchExpertCommentary()).slice(0, 5);
 
-  const news = fetchNews();
-  const rankedNews = rankAndDedupNews(news).slice(0, 12);
+  const inputBundle = { priceFacts, newsItems, expertItems };
+  const llmJson = callGemini(inputBundle, "gemini-2.5-flash");
 
-  const experts = fetchExpertCommentary();
-  const rankedExperts = rankExperts(experts).slice(0, 5);
-
-  const promptInput = {
-    priceFacts,
-    newsItems: rankedNews,
-    expertItems: rankedExperts
-  };
-
-  const llmJson = callSummarizerModel(promptInput);
-
-  validateOutput(llmJson, priceFacts, rankedNews, rankedExperts);
-
-  return llmJson;
+  const validated = validateOutput(llmJson, priceFacts, newsItems, expertItems);
+  return persistAnalysis(validated);
 }
-
-FINAL RECOMMENDATION
-
-Use an LLM only as the last-mile writer.
-Do not make it the analyst, the calculator, and the data source at the same time.
-That design is weak and will embarrass you in production.

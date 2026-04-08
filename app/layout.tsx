@@ -7,6 +7,7 @@ import { Footer }            from '@/components/layout/Footer'
 import { AdBanner }          from '@/components/ads/AdBanner'
 import { AdFooter }          from '@/components/ads/AdFooter'
 import { CurrencyProvider }  from '@/contexts/CurrencyContext'
+import { LanguageProvider }  from '@/contexts/LanguageContext'
 import { getLatestSnapshot } from '@/lib/queries/prices'
 
 // ─── Thai-supporting Google Font ──────────────────────────────────────────────
@@ -103,17 +104,19 @@ export default async function RootLayout({
           ข้ามไปยังเนื้อหาหลัก
         </a>
 
-        <CurrencyProvider initialRate={initialRate}>
-          <Header />
-          <AdBanner />
+        <LanguageProvider>
+          <CurrencyProvider initialRate={initialRate}>
+            <Header />
+            <AdBanner />
 
-          <main id="main-content" className="min-h-screen">
-            {children}
-          </main>
+            <main id="main-content" className="min-h-screen">
+              {children}
+            </main>
 
-          <AdFooter />
-          <Footer />
-        </CurrencyProvider>
+            <AdFooter />
+            <Footer />
+          </CurrencyProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

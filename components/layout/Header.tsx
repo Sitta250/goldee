@@ -1,14 +1,8 @@
-import Link from 'next/link'
-import { MobileNav }       from './MobileNav'
-import { CurrencyToggle }  from './CurrencyToggle'
-
-const NAV_LINKS = [
-  { href: '/',           label: 'หน้าแรก' },
-  { href: '/history',   label: 'ประวัติราคา' },
-  { href: '/calculator',label: 'คำนวณทอง' },
-  { href: '/articles',  label: 'บทความ' },
-  { href: '/about',     label: 'เกี่ยวกับ' },
-]
+import Link            from 'next/link'
+import { NavLinks }     from './NavLinks'
+import { MobileNav }    from './MobileNav'
+import { CurrencyToggle } from './CurrencyToggle'
+import { LanguageToggle } from './LanguageToggle'
 
 export function Header() {
   return (
@@ -21,7 +15,6 @@ export function Header() {
             className="flex items-center gap-2 shrink-0 group"
             aria-label="Goldee — กลับหน้าแรก"
           >
-            {/* TODO: Replace with a real SVG logo */}
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gold-400 text-white text-xs font-bold select-none">
               G
             </span>
@@ -30,21 +23,12 @@ export function Header() {
             </span>
           </Link>
 
-          {/* Desktop navigation */}
-          <nav aria-label="เมนูหลัก" className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          {/* Desktop navigation — language-aware */}
+          <NavLinks />
 
           {/* Right-side controls */}
           <div className="flex items-center gap-2">
+            <LanguageToggle />
             <CurrencyToggle />
             <MobileNav />
           </div>

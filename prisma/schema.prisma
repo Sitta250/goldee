@@ -158,6 +158,45 @@ model SiteSettings {
   @@map("site_settings")
 }
 
+// ─── Gold Analysis ────────────────────────────────────────────────────────────
+// One row per scheduled analysis run (09:30 and 18:00 UTC+7).
+// Payload is bilingual JSON validated against the GoldAnalysisPayload schema.
+model GoldAnalysis {
+  id                    String   @id @default(uuid())
+
+  // When this record was generated
+  generatedAt           DateTime @default(now()) @map("generated_at")
+
+  // Timestamp of the price snapshot used as input
+  basedOnPriceTimestamp DateTime @map("based_on_price_timestamp")
+
+  // ISO 8601 interval string describing the news window e.g. "2026-04-08T00:00:00Z/2026-04-08T09:30:00Z"
+  basedOnNewsWindow     String   @map("based_on_news_window")
+
+  // Gemini model details
+  modelName             String   @map("model_name")    // "gemini-2.5-flash"
+  modelVersion          String?  @map("model_version")
+
+  // SHA-256 of serialised input bundle — used for idempotency
+  inputHash             String   @map("input_hash")
+
+  // "morning" (09:30 UTC+7) | "evening" (18:00 UTC+7)
+  runWindow             String   @map("run_window") @db.VarChar(20)
+
+  // Validated bilingual analysis payload (GoldAnalysisPayload JSON)
+  payload               Json
+
+  // false if the analysis failed validation and a safe fallback was used
+  isValid               Boolean  @default(true) @map("is_valid")
+
+  // Populated when isValid = false
+  validationError       String?  @map("validation_error")
+
+  @@index([generatedAt(sort: Desc)])
+  @@index([runWindow, generatedAt(sort: Desc)])
+  @@map("gold_analysis")
+}
+
 // ─── Source Status ────────────────────────────────────────────────────────────
 // One row per gold price source. Updated after every cron run.
 // Useful for monitoring: if status = 'error' for > 15 min, alert.
