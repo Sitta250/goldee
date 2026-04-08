@@ -6,8 +6,8 @@ import { getSnapshotsByRange } from '@/lib/queries/prices'
 // Called client-side by TrendChart when the user switches timeframes.
 // Returns lightweight { timestamp, barSell }[] points, downsampled to ≤200.
 //
-// Cache-Control: 4 minutes (slightly under 5-min cron) so most requests
-// are served from Vercel's edge cache with a fresh copy arriving after each cron.
+// Cache-Control: 1 minute to reduce visible lag after new inserts.
+// Scheduler routes trigger on-demand revalidation when status is "inserted".
 
 const VALID_TIMEFRAMES: Timeframe[] = ['1D', '7D', '30D', '6M', '1Y']
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       { range, points },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=240, stale-while-revalidate=60',
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
         },
       },
     )

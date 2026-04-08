@@ -251,7 +251,7 @@ Use **GitHub Actions** as the default scheduler for Vercel Hobby.
 This repo includes `.github/workflows/scheduler-fetch.yml` with:
 - `schedule`: every 5 minutes (`*/5 * * * *`)
 - `workflow_dispatch`: manual run support
-- `GET` to `GOLDAPI_URL` with `x-access-token: GOLDAPI_API_KEY` (upstream source)
+- `GET` to `CHNWT_API_URL` (upstream source)
 - normalize payload into `source`, `asTime`, `seq`, prices, and `fetchedAt`
 - `POST` to `SCHEDULER_INGEST_URL` with `Authorization: Bearer ${CRON_SECRET}`
 - explicit failure on non-200 responses
@@ -262,8 +262,7 @@ This repo includes `.github/workflows/scheduler-fetch.yml` with:
 In GitHub: **Repository → Settings → Secrets and variables → Actions → New repository secret**
 
 Add:
-- `GOLDAPI_URL` = `https://www.goldapi.io/api/XAU/THB`
-- `GOLDAPI_API_KEY` = your GoldAPI API key
+- `CHNWT_API_URL` = `https://api.chnwt.dev/thai-gold-api`
 - `SCHEDULER_INGEST_URL` = `https://your-domain.com/api/scheduler/ingest`
 - `CRON_SECRET` = same value as Vercel `CRON_SECRET`
 
@@ -278,22 +277,19 @@ Add:
 - In GitHub: **Actions → Scheduler Fetch → Run workflow**
 - Choose branch (usually `main`) and click **Run workflow**
 - Open the run logs:
-  - verify GoldAPI fetch `HTTP status: 200`
+  - verify CHNWT fetch `HTTP status: 200`
   - verify ingest `HTTP status: 200`
   - inspect ingest JSON response body (`inserted` or `skipped`)
 
-#### GoldAPI normalization rules
+#### CHNWT normalization rules
 
-The workflow maps GoldAPI XAU/THB (per troy ounce) to local 96.5% per baht-weight values:
-- convert ounce -> baht-weight using `31.1034768 / 15.244`
-- apply 96.5% factor (`0.965`)
-- round to nearest 10 THB
-- derive spreads:
-  - `barBuy = barSell - 100`
-  - `ornamentBuy = barBuy - 900`
-  - `ornamentSell = barSell + 700`
+The workflow maps CHNWT payload fields to normalized ingest fields:
+- `barBuy` / `barSell` from `response.price.gold_bar.buy` / `sell`
+- `ornamentBuy` / `ornamentSell` from `response.price.gold.buy` / `sell`
+- `seq` from `ครั้งที่ N` in `response.update_time` (fallback to `asTime`)
+- `asTime` from Thai `update_date + update_time` converted to ISO (UTC+7 aware)
 
-Reference mapper: `scripts/map-goldapi-to-ingest.js` and `lib/ingestion/providers/goldapi-mapping.ts`.
+Reference mapper: `scripts/map-chnwt-to-ingest.js` and `lib/ingestion/providers/goldapi-mapping.ts`.
 
 ---
 
@@ -304,6 +300,7 @@ Reference mapper: `scripts/map-goldapi-to-ingest.js` and `lib/ingestion/provider
 - `/api/cron/fetch-gold-price` remains supported as a legacy path
 - Auth uses: `Authorization: Bearer <CRON_SECRET>`
 - 5-minute schedule (`*/5 * * * *`) is fully compatible with this ingestion flow
+- When a new snapshot is inserted, `/` and `/history` are revalidated immediately
 - For Vercel Hobby, use an external scheduler (GitHub Actions recommended)
 
 **Verify scheduler ingest endpoint:**
@@ -311,7 +308,7 @@ Reference mapper: `scripts/map-goldapi-to-ingest.js` and `lib/ingestion/provider
 curl -X POST \
      -H "Authorization: Bearer <CRON_SECRET>" \
      -H "Content-Type: application/json" \
-     --data '{"source":"ygta","asTime":"2026-04-01T09:36:00","seq":"test-1","barBuy":49200,"barSell":49300,"ornamentBuy":48300,"ornamentSell":50000,"fetchedAt":"2026-04-01T09:36:30Z"}' \
+     --data '{"source":"chnwt","asTime":"2026-04-01T09:36:00Z","seq":"69","barBuy":70950,"barSell":71150,"ornamentBuy":69523.76,"ornamentSell":71950,"fetchedAt":"2026-04-01T09:36:30Z"}' \
      https://your-domain.com/api/scheduler/ingest
 ```
 
@@ -380,13 +377,13 @@ remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
 
 **Scheduler not running every 5 minutes**
 - Confirm external scheduler frequency is `*/5 * * * *`
-- Confirm `GOLDAPI_URL`, `GOLDAPI_API_KEY`, and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
+- Confirm `CHNWT_API_URL` and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
 - Confirm ingest URL is `https://your-domain.com/api/scheduler/ingest`
 - Confirm header is `Authorization: Bearer <CRON_SECRET>` for ingest requests
 - `CRON_SECRET` must match Vercel environment variables
 
 **Chart shows old data after price update**
-The history API route has a 4-minute `Cache-Control`. Wait up to 4 minutes or force a new deploy to invalidate the edge cache.
+Scheduler insertions now trigger immediate revalidation for `/` and `/history`. The history API route also uses a shorter edge cache (`s-maxage=60`). If data still looks stale, hard-refresh once.
 
 **TypeScript errors after `prisma migrate dev`**
 Run `npm run db:generate` to regenerate the Prisma client types.
@@ -411,7 +408,7 @@ app/
     scheduler/fetch/              Legacy pull-based scheduler endpoint
     cron/fetch-gold-price/        Legacy cron endpoint (kept for compatibility)
     admin/run-fetch/              Manual trigger — auth-gated, any environment
-    prices/history/               Client chart data (cached 4 min at edge)
+    prices/history/               Client chart data (cached 1 min at edge)
     gold/trigger/                 Dev-only trigger — blocked in production
     gold/fetch/                   Internal fetch+persist — auth-gated POST
     cron/                         Legacy cron path — kept for compatibility

@@ -5,7 +5,7 @@ import { getHomepageData }    from '@/lib/queries/homepage'
 import { buildMetadata }      from '@/lib/utils/metadata'
 import { Container }          from '@/components/layout/Container'
 import { PriceHero }          from '@/components/price/PriceHero'
-import { TrendChart }         from '@/components/chart/TrendChart'
+import { TradingViewChart }   from '@/components/chart/TradingViewChart'
 import { DailySummaryCard }   from '@/components/home/DailySummaryCard'
 import { FaqSection }         from '@/components/home/FaqSection'
 import { CalculatorPreview }  from '@/components/calculator/CalculatorPreview'
@@ -47,7 +47,7 @@ function NoPriceData() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const { latestPrice, chartData, summary, articles, faqItems } =
+  const { latestPrice, summary, articles, faqItems } =
     await getHomepageData()
 
   return (
@@ -65,9 +65,8 @@ export default async function HomePage() {
               <NoPriceData />
             )}
 
-            {/* 2. Trend chart — 1D data server-fetched, other ranges load
-                 client-side from /api/prices/history?range=X                  */}
-            <TrendChart initialData={chartData} initialRange="1D" />
+            {/* 2. TradingView chart — XAU/USD advanced chart widget */}
+            <TradingViewChart />
 
             {/* 3. In-content ad slot */}
             <AdRectangle />

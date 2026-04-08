@@ -9,20 +9,17 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch GoldAPI and ingest normalized payload
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch CHNWT API and ingest normalized payload
         env:
-          GOLDAPI_URL: ${{ secrets.GOLDAPI_URL }}
-          GOLDAPI_API_KEY: ${{ secrets.GOLDAPI_API_KEY }}
+          CHNWT_API_URL: ${{ secrets.CHNWT_API_URL }}
           SCHEDULER_INGEST_URL: ${{ secrets.SCHEDULER_INGEST_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$GOLDAPI_URL" ]; then
-            echo "Missing required secret: GOLDAPI_URL"
-            exit 1
-          fi
-
-          if [ -z "$GOLDAPI_API_KEY" ]; then
-            echo "Missing required secret: GOLDAPI_API_KEY"
+          if [ -z "$CHNWT_API_URL" ]; then
+            echo "Missing required secret: CHNWT_API_URL"
             exit 1
           fi
 
@@ -36,27 +33,26 @@ jobs:
             exit 1
           fi
 
-          echo "1) Fetching upstream GoldAPI..."
+          echo "1) Fetching upstream CHNWT API..."
           upstream_body_file="$(mktemp)"
           upstream_status_code="$(curl -sS -o "$upstream_body_file" -w "%{http_code}" \
             -X GET \
             -H "Accept: application/json, text/plain, */*" \
-            -H "x-access-token: ${GOLDAPI_API_KEY}" \
-            "${GOLDAPI_URL}")"
+            "${CHNWT_API_URL}")"
 
-          echo "GoldAPI HTTP status: ${upstream_status_code}"
-          echo "GoldAPI response preview (500):"
+          echo "CHNWT HTTP status: ${upstream_status_code}"
+          echo "CHNWT response preview (500):"
           tr '\n' ' ' < "$upstream_body_file" | cut -c1-500
           echo
 
           if [ "$upstream_status_code" -ne 200 ]; then
-            echo "GoldAPI call failed with non-200 response."
+            echo "CHNWT call failed with non-200 response."
             exit 1
           fi
 
           echo "2) Parsing and normalizing payload..."
           normalized_payload_file="$(mktemp)"
-          node scripts/map-goldapi-to-ingest.js "$upstream_body_file" "$normalized_payload_file"
+          node scripts/map-chnwt-to-ingest.js "$upstream_body_file" "$normalized_payload_file"
 
           echo "3) Posting normalized payload to ingest endpoint..."
           ingest_response_file="$(mktemp)"

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
@@ -67,6 +68,9 @@ export async function GET(req: NextRequest) {
   }
 
   // status === 'inserted'
+  revalidatePath('/')
+  revalidatePath('/history')
+
   return NextResponse.json({
     ok:         true,
     status:     'inserted',

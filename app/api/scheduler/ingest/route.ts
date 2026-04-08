@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { ingestNormalizedPayload, type NormalizedIngestPayload } from '@/lib/ingestion/ingest-normalized'
 import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
@@ -74,6 +75,9 @@ export async function POST(req: NextRequest) {
         durationMs,
       })
     }
+
+    revalidatePath('/')
+    revalidatePath('/history')
 
     return NextResponse.json({
       ok: true,
