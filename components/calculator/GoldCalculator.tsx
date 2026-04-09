@@ -10,8 +10,9 @@ import type { WeightUnit, TransactionType } from '@/types/gold'
 type PurityPreset = 96.5 | 99.99 | 90 | 80 | 75 | 'custom'
 
 interface GoldCalculatorProps {
-  goldBarBuy:  number
-  goldBarSell: number
+  goldBarBuy:      number
+  goldBarSell:     number
+  initialTxType?:  TransactionType
 }
 
 // ─── Purity presets ───────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ const PURITY_PRESETS: { value: PurityPreset; label: string; sublabel: string }[]
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function GoldCalculator({ goldBarBuy, goldBarSell }: GoldCalculatorProps) {
+export function GoldCalculator({ goldBarBuy, goldBarSell, initialTxType }: GoldCalculatorProps) {
   const weightId  = useId()
   const customId  = useId()
 
@@ -35,7 +36,7 @@ export function GoldCalculator({ goldBarBuy, goldBarSell }: GoldCalculatorProps)
   const [unit,         setUnit]         = useState<WeightUnit>('baht')
   const [purityPreset, setPurityPreset] = useState<PurityPreset>(96.5)
   const [customPurity, setCustomPurity] = useState('96.5')
-  const [txType,       setTxType]       = useState<TransactionType>('sell')
+  const [txType,       setTxType]       = useState<TransactionType>(initialTxType ?? 'sell')
 
   // ── Derived values ──────────────────────────────────────────────────────────
   const weightNum   = Math.max(0, parseFloat(weightStr) || 0)

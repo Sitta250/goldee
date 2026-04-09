@@ -3,7 +3,8 @@
  * Always reads from the DB — never triggers a live LLM call.
  */
 
-import { db }                     from '@/lib/db'
+import { cache } from 'react'
+import { db }    from '@/lib/db'
 import type { GoldAnalysisRecord, GoldAnalysisPayload, RunWindow } from '@/types/analysis'
 
 function toRecord(row: {
@@ -34,14 +35,18 @@ function toRecord(row: {
   }
 }
 
-/** Latest analysis record where isValid = true (most recent generatedAt) */
-export async function getLatestAnalysis(): Promise<GoldAnalysisRecord | null> {
+/**
+ * Latest analysis record where isValid = true (most recent generatedAt).
+ * React-cached so multiple server components in the same request (e.g. the
+ * rationale teaser strip and the full GoldAnalysisCard) share one DB hit.
+ */
+export const getLatestAnalysis = cache(async function getLatestAnalysis(): Promise<GoldAnalysisRecord | null> {
   const row = await db.goldAnalysis.findFirst({
     where:   { isValid: true },
     orderBy: { generatedAt: 'desc' },
   })
   return row ? toRecord(row) : null
-}
+})
 
 /** Latest valid analysis for a specific run window */
 export async function getLatestAnalysisByWindow(

@@ -13,7 +13,7 @@ import { getLatestSnapshot } from '@/lib/queries/prices'
 // ─── Thai-supporting Google Font ──────────────────────────────────────────────
 const sarabun = Sarabun({
   subsets:  ['thai', 'latin'],
-  weight:   ['300', '400', '500', '600', '700'],
+  weight:   ['400', '500', '600', '700'],
   variable: '--font-sarabun',
   display:  'swap',
 })
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s | Goldee',
   },
   description:
-    'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทล่าสุดทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลขทอง',
+    'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ ตรวจสอบราคาทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลขทอง',
   keywords: [
     'ราคาทอง', 'ราคาทองวันนี้', 'ราคาทองคำแท่ง', 'ทองรูปพรรณ',
     'gold price thailand', 'ราคาทองล่าสุด', 'สมาคมค้าทองคำ',
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     siteName:  'Goldee',
     title:     'Goldee — ราคาทองวันนี้',
     description:
-      'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที',
+      'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ ตรวจสอบราคาทุก 5 นาที',
     images: [{
       url:    '/og-image.png',
       width:  1200,
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   twitter: {
     card:        'summary_large_image',
     title:       'Goldee — ราคาทองวันนี้',
-    description: 'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ อัพเดทอัตโนมัติทุก 5 นาที',
+    description: 'ราคาทองคำวันนี้ ทองคำแท่งและทองรูปพรรณ ตรวจสอบราคาทุก 5 นาที',
     images:      ['/og-image.png'],
   },
   robots: {

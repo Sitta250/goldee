@@ -8,7 +8,7 @@ import {
 
 import { buildMetadata }             from '@/lib/utils/metadata'
 import { Container }                 from '@/components/layout/Container'
-import { TradingViewChart }          from '@/components/chart/TradingViewChart'
+import { TradingViewChartClient as TradingViewChart } from '@/components/chart/TradingViewChartClient'
 import { HistoryTimeframeNav }       from '@/components/history/HistoryTimeframeNav'
 import { StatCards }                 from '@/components/history/StatCards'
 import { HistoryTable }              from '@/components/history/HistoryTable'

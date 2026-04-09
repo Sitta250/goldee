@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import type { Timeframe, ChartDataPoint, GoldPriceSnapshot, DailySummary } from '@/types/gold'
 
@@ -56,23 +57,48 @@ const snapshotSelect = {
 // ─── Snapshot queries ─────────────────────────────────────────────────────────
 
 /** The single most recent price snapshot */
-export async function getLatestSnapshot(): Promise<GoldPriceSnapshot | null> {
+export const getLatestSnapshot = cache(async function getLatestSnapshot(): Promise<GoldPriceSnapshot | null> {
   const row = await db.goldPriceSnapshot.findFirst({
     orderBy: { fetchedAt: 'desc' },
     select:  snapshotSelect,
   })
   return row ? toSnapshot(row) : null
-}
+})
+
+/**
+ * "Yesterday's close" for Thai gold context.
+ *
+ * Definition: the most recent snapshot stored before today's midnight in UTC+7.
+ * YGTA announces prices on Thai trading days; this gives the last announced
+ * price from the previous trading day, regardless of whether that was exactly
+ * 24 h ago.  We use UTC+7 midnight (not a rolling 24 h window) so the delta
+ * stays stable throughout the current trading day rather than drifting each hour.
+ */
+export const getYesterdaySnapshot = cache(async function getYesterdaySnapshot(): Promise<GoldPriceSnapshot | null> {
+  const UTC7_OFFSET_MS = 7 * 60 * 60 * 1_000
+  const nowMs          = Date.now()
+  // Start of today in UTC+7, expressed as UTC
+  const todayStartUtcMs = Math.floor((nowMs + UTC7_OFFSET_MS) / (24 * 60 * 60 * 1_000)) *
+    (24 * 60 * 60 * 1_000) - UTC7_OFFSET_MS
+  const todayStartUtc = new Date(todayStartUtcMs)
+
+  const row = await db.goldPriceSnapshot.findFirst({
+    where:   { fetchedAt: { lt: todayStartUtc } },
+    orderBy: { fetchedAt: 'desc' },
+    select:  snapshotSelect,
+  })
+  return row ? toSnapshot(row) : null
+})
 
 /** The snapshot immediately before the latest — used to calculate price change */
-export async function getPreviousSnapshot(): Promise<GoldPriceSnapshot | null> {
+export const getPreviousSnapshot = cache(async function getPreviousSnapshot(): Promise<GoldPriceSnapshot | null> {
   const rows = await db.goldPriceSnapshot.findMany({
     orderBy: { fetchedAt: 'desc' },
     take:    2,
     select:  snapshotSelect,
   })
   return rows.length > 1 ? toSnapshot(rows[1]) : null
-}
+})
 
 /** Latest N snapshots — for small in-page tables */
 export async function getRecentSnapshots(limit = 10): Promise<GoldPriceSnapshot[]> {

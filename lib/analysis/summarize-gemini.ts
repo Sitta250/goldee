@@ -47,7 +47,8 @@ const SHARED_RULES = `1. Summarise ONLY the facts and evidence provided in the u
 3. NEVER give investment advice. Do NOT use words: buy, sell, recommend, should invest, profitable.
 4. Return ONLY valid JSON — no markdown, no code fences, no explanation outside the JSON.
 5. ALL text fields must contain BOTH Thai (th) and English (en) values.
-6. Echo the numeric values from the provided priceFacts exactly — do not alter them.`
+6. Echo the numeric values from the provided priceFacts exactly — do not alter them.
+7. NEVER output generic filler: "ไม่มีข่าวล่าสุด", "no news available", "ไม่มีข้อมูล". When external evidence is absent, use domestic price movement, Thai baht direction, or intraday range from priceFacts instead — these are always actionable.`
 
 // ─── Prompt builder ───────────────────────────────────────────────────────────
 
@@ -94,13 +95,16 @@ function buildEvidenceSections(bundle: AnalysisInputBundle): string {
     ? newsItems.map((n, i) =>
         `[N${i + 1}] "${n.title}" — ${n.source} (${n.publishedAt.toISOString().slice(0, 10)})\n${n.summary}`,
       ).join('\n\n')
-    : 'No recent gold news available.'
+    : `No external news provided for this window.
+Use domestic price movement and the price facts above as primary context for market_drivers and watch_list.
+Focus on: intraday range (${pf.intraday_range_abs.toFixed(2)} THB), Thai baht direction vs USD, and the ${pf.trend_direction} trend.`
 
   const expertBlock = expertItems.length > 0
     ? expertItems.map((e, i) =>
         `[E${i + 1}] ${e.expert} (${e.source}, ${e.publishedAt.toISOString().slice(0, 10)}): "${e.quote}"`,
       ).join('\n\n')
-    : 'No expert commentary available.'
+    : `No expert commentary provided.
+Base expert_view on price_signals: trend_direction="${pf.trend_direction}", bias_today="${pf.bias_today}", bias_week="${pf.bias_week}". Set consensus_strength to "low".`
 
   return `=== PRICE FACTS (computed by backend, do not alter) ===
 Current Thai gold bar sell price: ${pf.currentPrice.toFixed(2)} THB/baht-weight
@@ -125,7 +129,7 @@ ${expertBlock}`
 function buildJsonSchemaExample(pf: PriceFacts): string {
   return `{
   "price_analysis": {
-    "headline": { "th": "...", "en": "..." },
+    "headline": { "th": "สถานะวันนี้: [ขึ้น/ลง/ทรงตัว] — one-line factual headline", "en": "..." },
     "summary":  { "th": "...", "en": "..." },
     "vs_yesterday": {
       "direction": "${pf.direction_today}",
@@ -147,11 +151,19 @@ function buildJsonSchemaExample(pf: PriceFacts): string {
     {
       "theme":       { "th": "...", "en": "..." },
       "impact_type": "already_affecting|could_affect",
-      "summary":     { "th": "...", "en": "..." },
+      "summary":     { "th": "one grounded bullet — cite the specific factor from inputs", "en": "..." },
       "confidence":  "low|medium|high",
-      "source_count": <integer>
+      "source_count": 0
     }
   ],
+  "watch_list": [
+    { "th": "สิ่งที่ต้องจับตา bullet 1 — specific, forward-looking, grounded in inputs", "en": "..." },
+    { "th": "สิ่งที่ต้องจับตา bullet 2", "en": "..." }
+  ],
+  "today_view": {
+    "suitable_for": "buyers|sellers|waiting|mixed",
+    "summary": { "th": "เหมาะสำหรับ... — ≤40 words, neutral framing, no investment advice", "en": "..." }
+  },
   "expert_view": {
     "overall_trend":      "bullish|bearish|mixed|unclear",
     "summary":            { "th": "...", "en": "..." },
@@ -167,60 +179,69 @@ function buildJsonSchemaExample(pf: PriceFacts): string {
 function buildMorningRequirements(): string {
   return `=== MORNING BRIEFING REQUIREMENTS ===
 
-Generate a concise MORNING gold market briefing (Thai + global context).
+Generate a concise MORNING gold market briefing structured in EXACTLY four named sections.
 
-PRICE ANALYSIS
-- Focus on overnight / early-session movement vs prior close context using provided facts.
-- Mention direction and magnitude clearly; do not speculate about full-day outcome.
-- You may briefly note intraday range from facts if it helps context.
+SECTION 1 — PRICE ANALYSIS (price_analysis)
+- headline.th: start with "สถานะวันนี้: ขึ้น / ลง / ทรงตัว" then one factual phrase.
+- summary: overnight / early-session movement from provided facts. ≤80 words per language. No full-day speculation.
 
-MARKET DRIVERS (2–4 themes)
-- Identify key themes currently influencing gold.
-- Map evidence to schema:
-  - Strong current influence → impact_type "already_affecting" with confidence high/medium.
-  - Possible influence today → impact_type "could_affect" with confidence medium.
-  - Uncertain → impact_type "could_affect" with confidence "low" and explicit caution in text.
+SECTION 2 — เหตุผลหลัก (market_drivers, 2–4 items)
+- Each driver is one grounded bullet tied to a specific input item (N1…Nn) or price fact.
+- impact_type mapping: strong evidence → "already_affecting"; plausible → "could_affect".
+- No vague drivers. If inputs are thin, use domestic factors from priceFacts (range, trend, baht).
+- summary ≤50 words per language.
 
-FORWARD LOOKING (no separate JSON field)
-- Weave "what to watch today" (macro, Fed/yields/dollar, geopolitical risks) into market_drivers summaries and/or expert_view.summary — only if supported by input items.
+SECTION 3 — สิ่งที่ต้องจับตา (watch_list, 1–3 items)
+- Forward-looking factors for today's session grounded in provided evidence.
+- If no forward-looking items in inputs: use macro schedule, baht movement, or price support/resistance levels from priceFacts.
+- NEVER output "ไม่มีข่าวล่าสุด" or empty bullets. Always give at least 1 specific, actionable item.
 
-EXPERT VIEW
-- Summarize current sentiment / early positioning from provided expert items only.
+SECTION 4 — มุมมองวันนี้ (today_view)
+- suitable_for: infer from direction + price_signals ONLY:
+  - up + bullish bias → "sellers" (price elevated, profit-taking context) OR "waiting" (momentum may extend)
+  - down + bearish bias → "buyers" (price lower, dip context) OR "waiting" (further decline possible)
+  - flat / mixed signals → "waiting" or "mixed"
+- summary.th: ≤40 words. Use "เหมาะสำหรับ" framing, neutral, NO investment advice.
+
+EXPERT VIEW (expert_view)
+- Summarize current sentiment from provided expert items only. If none: base on price_signals, set consensus_strength "low".
 
 TONE: neutral, concise, no hype.
-
-Word limits per language: price_analysis.summary ≤80 words, each market_drivers[].summary ≤50 words, expert_view.summary ≤70 words.
-
-source_count = integer count of provided news items (N1…Nn) that support that theme; do not invent.`
+source_count = integer count of N-items supporting that driver theme; do not invent.`
 }
 
 function buildEveningRequirements(): string {
   return `=== EVENING WRAP REQUIREMENTS ===
 
-Generate a concise EVENING gold market wrap (Thai + global context).
+Generate a concise EVENING gold market wrap structured in EXACTLY four named sections.
 
-PRICE ANALYSIS
-- Describe the day's move using provided price facts (direction and magnitude).
-- If intraday range in facts is meaningful, you may reference it briefly; do not invent OHLC beyond facts.
+SECTION 1 — PRICE ANALYSIS (price_analysis)
+- headline.th: start with "สถานะวันนี้: ขึ้น / ลง / ทรงตัว" then one factual phrase about the day's move.
+- summary: day's move using provided price facts. ≤80 words per language. No tomorrow speculation.
 
-MARKET DRIVERS (2–4 themes)
-Map evidence strength to schema:
-- Multiple reputable items clearly align on a theme → impact_type "already_affecting", confidence "high" or "medium".
-- Plausible but not proven → impact_type "could_affect", confidence "medium".
-- Weak / conflicting / unclear → impact_type "could_affect", confidence "low" and state uncertainty in text.
-Do not guess.
+SECTION 2 — เหตุผลหลัก (market_drivers, 2–4 items)
+- Each driver is one grounded bullet tied to input evidence or price facts.
+- Evidence strength: multiple aligned reputable items → "already_affecting" high/medium; plausible → "could_affect" medium; weak/conflicting → "could_affect" low.
+- If inputs are thin, use intraday range, trend, and baht rate from priceFacts.
+- summary ≤50 words per language.
 
-MORNING VS EVENING (optional)
-- If news/expert text clearly contrasts earlier expectations vs today's outcome, mention briefly in price_analysis.summary or expert_view.summary. Do not invent a morning forecast you were not given.
+SECTION 3 — สิ่งที่ต้องจับตา (watch_list, 1–3 items)
+- Near-term catalysts or risks from provided evidence that could affect gold in coming days.
+- If no forward-looking items in inputs: reference scheduled macro events implied by news dates, or baht/USD trends.
+- NEVER output "ไม่มีข่าวล่าสุด" or empty bullets. Always give at least 1 specific item.
 
-EXPERT VIEW
-- End-of-day sentiment: use overall_trend and consensus_strength to reflect whether sentiment strengthened, weakened, or stayed mixed vs the evidence.
+SECTION 4 — มุมมองวันนี้ (today_view)
+- suitable_for: infer from direction + price_signals ONLY:
+  - up + bullish bias → "sellers" (elevated price, profit-taking context) OR "waiting"
+  - down + bearish bias → "buyers" (lower price, dip context) OR "waiting"
+  - flat / mixed → "waiting" or "mixed"
+- summary.th: ≤40 words. "เหมาะสำหรับ" framing, neutral, NO investment advice.
+
+EXPERT VIEW (expert_view)
+- End-of-day sentiment from provided items. If none: base on price_signals, set consensus_strength "low".
 
 TONE: factual, no hype. Do NOT speculate about tomorrow.
-
-Word limits per language: price_analysis.summary ≤80 words, each market_drivers[].summary ≤50 words, expert_view.summary ≤70 words.
-
-source_count = integer count of provided news items (N1…Nn) that support that theme; do not invent.`
+source_count = integer count of N-items supporting that driver theme; do not invent.`
 }
 
 function buildUserPrompt(bundle: AnalysisInputBundle, runWindow: RunWindow): string {

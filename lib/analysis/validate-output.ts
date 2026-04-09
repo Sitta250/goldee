@@ -20,6 +20,7 @@ import type {
   AnalysisInputBundle,
   TrendDirection,
   Bias,
+  SuitableFor,
 } from '@/types/analysis'
 import { EXPERT_SOURCE_NAMES } from './fetch-expert-commentary'
 
@@ -134,6 +135,31 @@ function checkSchema(payload: unknown): string[] {
       errors.push('price_signals.bias_today must be bullish|bearish|neutral')
     if (!validBias.includes(ps.bias_week as Bias))
       errors.push('price_signals.bias_week must be bullish|bearish|neutral')
+  }
+
+  // watch_list — optional for old records; when present, must be array of {th,en}
+  if (p.watch_list !== undefined) {
+    if (!Array.isArray(p.watch_list) || p.watch_list.length === 0) {
+      errors.push('watch_list must be a non-empty array when present')
+    } else {
+      for (const [i, item] of (p.watch_list as unknown[]).entries()) {
+        if (!isAnalysisText(item)) errors.push(`watch_list[${i}] must be {th,en}`)
+      }
+    }
+  }
+
+  // today_view — optional for old records; when present, must have suitable_for + summary
+  if (p.today_view !== undefined) {
+    const tv = p.today_view as Record<string, unknown> | undefined
+    if (!tv) {
+      errors.push('today_view must be an object when present')
+    } else {
+      const validSuitableFor: SuitableFor[] = ['buyers', 'sellers', 'waiting', 'mixed']
+      if (!validSuitableFor.includes(tv.suitable_for as SuitableFor))
+        errors.push('today_view.suitable_for must be buyers|sellers|waiting|mixed')
+      if (!isAnalysisText(tv.summary))
+        errors.push('today_view.summary must be {th,en}')
+    }
   }
 
   // disclaimer
@@ -346,21 +372,37 @@ export function buildFallbackPayload(priceFacts: PriceFacts): GoldAnalysisPayloa
     },
     market_drivers: [
       {
-        theme:       { th: 'ข้อมูลไม่เพียงพอ', en: 'Insufficient data' },
-        impact_type: 'could_affect',
+        theme:       { th: `ทิศทาง${dirTh}ตามแนวโน้ม`, en: `${dirEn} trend` },
+        impact_type: 'already_affecting',
         summary:     {
-          th: 'ไม่สามารถระบุปัจจัยได้ในรอบนี้',
-          en: 'No sufficient evidence to identify market drivers for this window.',
+          th: `ราคาทองปรับ${dirTh} ${Math.abs(priceFacts.change_vs_yesterday_abs).toFixed(0)} บาท ตามทิศทาง${priceFacts.trend_direction === 'uptrend' ? 'ขาขึ้น' : priceFacts.trend_direction === 'downtrend' ? 'ขาลง' : 'ทรงตัว'}`,
+          en:  `Gold moved ${dirEn} ${Math.abs(priceFacts.change_vs_yesterday_abs).toFixed(0)} THB in line with ${priceFacts.trend_direction} trend.`,
         },
         confidence:   'low',
         source_count: 0,
       },
     ],
+    watch_list: [
+      {
+        th: 'จับตาทิศทางค่าเงินดอลลาร์และราคาทองคำโลก ซึ่งมักเป็นปัจจัยหลักที่ส่งผลต่อราคาทองไทย',
+        en: 'Watch USD direction and global gold spot price — primary drivers of Thai gold prices.',
+      },
+    ],
+    today_view: {
+      suitable_for: priceFacts.direction_today === 'flat' ? 'waiting'
+        : priceFacts.bias_today === 'bullish' ? 'sellers'
+        : priceFacts.bias_today === 'bearish' ? 'buyers'
+        : 'waiting',
+      summary: {
+        th: 'ข้อมูลการวิเคราะห์โดยละเอียดไม่พร้อมใช้งานในรอบนี้ โปรดตรวจสอบราคาอีกครั้งในรอบถัดไป',
+        en: 'Detailed analysis unavailable for this window. Check back next run.',
+      },
+    },
     expert_view: {
       overall_trend:      'unclear',
       summary:            {
-        th: 'ไม่มีความเห็นจากผู้เชี่ยวชาญในรอบนี้',
-        en: 'No expert commentary available for this window.',
+        th: `สัญญาณจากระบบชี้ทิศทาง${priceFacts.trend_direction === 'uptrend' ? 'ขาขึ้น' : priceFacts.trend_direction === 'downtrend' ? 'ขาลง' : 'ทรงตัว'} แต่ขาดข้อมูลผู้เชี่ยวชาญในรอบนี้`,
+        en: `Price signals indicate ${priceFacts.trend_direction}, but no expert commentary available for this window.`,
       },
       consensus_strength: 'low',
     },

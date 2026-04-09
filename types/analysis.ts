@@ -43,11 +43,34 @@ export interface ExpertViewSection {
   consensus_strength: 'low' | 'medium' | 'high'
 }
 
+// ─── Today view (มุมมองวันนี้) ──────────────────────────────────────────────
+// Contextual framing of who this day's price action typically favours.
+// NOT investment advice — framed as "เหมาะสำหรับ" (suitable for), never "ควร".
+
+export type SuitableFor = 'buyers' | 'sellers' | 'waiting' | 'mixed'
+
+export interface TodayViewSection {
+  /** Derived from direction + price_signals, NOT from LLM judgment */
+  suitable_for: SuitableFor
+  /** ≤40 words per language. Neutral framing: context, not recommendation. */
+  summary:      AnalysisText
+}
+
 export interface GoldAnalysisPayload {
   price_analysis:  PriceAnalysisSection
   /** Computed by backend, echoed by LLM. Optional for backwards compat with old DB records. */
   price_signals?:  PriceSignals
   market_drivers:  MarketDriver[]      // 2–4 items
+  /**
+   * "สิ่งที่ต้องจับตา" — 1–3 forward-looking bullets grounded in provided evidence.
+   * Optional for backwards compat; required for all records generated after this schema version.
+   */
+  watch_list?:     AnalysisText[]
+  /**
+   * "มุมมองวันนี้" — who this type of day contextually favours.
+   * Optional for backwards compat; required for all records generated after this schema version.
+   */
+  today_view?:     TodayViewSection
   expert_view:     ExpertViewSection
   disclaimer:      AnalysisText
 }

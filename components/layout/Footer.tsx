@@ -20,7 +20,7 @@ export function Footer() {
           <div className="space-y-1">
             <p className="font-semibold text-gray-900 tracking-tight">Goldee</p>
             <p className="text-sm text-gray-400">
-              ราคาทองคำวันนี้ อัพเดทล่าสุดทุก 5 นาที
+              ราคาทองคำวันนี้ ตรวจสอบราคาทุก 5 นาที
             </p>
           </div>
 

@@ -1,16 +1,18 @@
 'use client'
 
-import type { LatestPriceData } from '@/types/gold'
+import type { LatestPriceData, PriceChange } from '@/types/gold'
 import { PriceCard }          from './PriceCard'
 import { PriceChangeDisplay } from './PriceChange'
 import { LastUpdated }        from './LastUpdated'
 import { useCurrency }        from '@/contexts/CurrencyContext'
 
 interface PriceHeroProps {
-  data: LatestPriceData
+  data:                 LatestPriceData
+  /** Change vs yesterday's UTC+7 midnight close — shown as a second delta row */
+  changeFromYesterday?: PriceChange | null
 }
 
-export function PriceHero({ data }: PriceHeroProps) {
+export function PriceHero({ data, changeFromYesterday }: PriceHeroProps) {
   const { snapshot, change } = data
   const { isUsd } = useCurrency()
 
@@ -28,11 +30,20 @@ export function PriceHero({ data }: PriceHeroProps) {
               : '1 บาทน้ำหนัก = 15.244 กรัม · THB'}
           </p>
         </div>
-        <LastUpdated timestamp={snapshot.fetchedAt} />
+        <LastUpdated
+          fetchedAt={snapshot.fetchedAt}
+          capturedAt={snapshot.capturedAt}
+          sourceName={snapshot.sourceName}
+        />
       </div>
 
-      {/* Change indicator */}
-      <PriceChangeDisplay change={change} />
+      {/* Change indicators — vs previous update and vs yesterday close */}
+      <div className="space-y-1.5">
+        <PriceChangeDisplay change={change} label="เทียบก่อนหน้า" />
+        {changeFromYesterday && (
+          <PriceChangeDisplay change={changeFromYesterday} label="เทียบเมื่อวาน" />
+        )}
+      </div>
 
       {/* Price cards grid */}
       <div className="space-y-3">

@@ -6,10 +6,12 @@ import { formatPercent } from '@/lib/utils/format'
 
 interface PriceChangeProps {
   change: PriceChange
+  /** Contextual label shown after the numbers. Defaults to "เทียบก่อนหน้า". */
+  label?: string
   className?: string
 }
 
-export function PriceChangeDisplay({ change, className = '' }: PriceChangeProps) {
+export function PriceChangeDisplay({ change, label, className = '' }: PriceChangeProps) {
   const { amount, percent, direction } = change
   const { symbol, format } = useCurrency()
 
@@ -47,7 +49,7 @@ export function PriceChangeDisplay({ change, className = '' }: PriceChangeProps)
         {formatPercent(percent)}
       </span>
 
-      <span className="text-xs text-gray-400">เทียบราคาล่าสุด</span>
+      <span className="text-xs text-gray-400">{label ?? 'เทียบก่อนหน้า'}</span>
     </div>
   )
 }

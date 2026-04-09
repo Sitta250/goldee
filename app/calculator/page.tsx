@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { TransactionType } from '@/types/gold'
 
 import { getLatestSnapshot }  from '@/lib/queries/prices'
 import { buildMetadata }      from '@/lib/utils/metadata'
@@ -34,7 +35,15 @@ function NoPriceState() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function CalculatorPage() {
+export default async function CalculatorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>
+}) {
+  const { type } = await searchParams
+  const initialTxType: TransactionType | undefined =
+    type === 'buy' ? 'buy' : type === 'sell' ? 'sell' : undefined
+
   const latest = await getLatestSnapshot()
 
   return (
@@ -49,7 +58,13 @@ export default async function CalculatorPage() {
               ประมาณมูลค่าทองจากน้ำหนักและความบริสุทธิ์
               โดยอ้างอิงราคาล่าสุดจากสมาคมค้าทองคำ
             </p>
-            {latest && <LastUpdated timestamp={latest.fetchedAt} />}
+            {latest && (
+              <LastUpdated
+                fetchedAt={latest.fetchedAt}
+                capturedAt={latest.capturedAt}
+                sourceName={latest.sourceName}
+              />
+            )}
           </div>
 
           {/* ── 2. Calculator form + result ──────────────────────────────────── */}
@@ -58,6 +73,7 @@ export default async function CalculatorPage() {
               <GoldCalculator
                 goldBarBuy={latest.goldBarBuy}
                 goldBarSell={latest.goldBarSell}
+                initialTxType={initialTxType}
               />
             ) : (
               <NoPriceState />

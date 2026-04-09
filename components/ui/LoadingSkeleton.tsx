@@ -56,6 +56,25 @@ export function ArticleCardSkeleton() {
   )
 }
 
+export function BelowFoldSkeleton() {
+  return (
+    <div className="space-y-8" aria-hidden="true">
+      {/* summary + analysis cards */}
+      <div className="rounded-card bg-white border border-gray-100 p-4 shadow-card space-y-3">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+      </div>
+      {/* articles */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <ArticleCardSkeleton />
+        <ArticleCardSkeleton />
+        <ArticleCardSkeleton />
+      </div>
+    </div>
+  )
+}
+
 export function TableRowSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <>
