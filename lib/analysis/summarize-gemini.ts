@@ -2,7 +2,7 @@
  * Gemini 2.5 Flash summarizer.
  *
  * Constraints enforced here:
- * - Model: gemini-2.5-flash
+ * - Model: `GEMINI_MODEL` or default gemini-2.5-flash; optional `GEMINI_FALLBACK_MODEL` after transient failures
  * - Secret: GEMINI_API_KEY only
  * - No tool use / browsing / research — text generation only
  * - Returns strict JSON matching GoldAnalysisPayload
@@ -16,10 +16,28 @@ import type {
   PriceFacts,
   RunWindow,
 } from '@/types/analysis'
+import { withRetry } from '@/lib/ingestion/retry'
 
-const MODEL       = 'gemini-2.5-flash'
-const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models'
-const TIMEOUT_MS  = 90_000
+/** Default when `GEMINI_MODEL` is unset. */
+const DEFAULT_MODEL = 'gemini-2.5-flash'
+const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models'
+/** Per-attempt request timeout (each retry gets a fresh controller). */
+const TIMEOUT_MS    = 90_000
+
+const GEMINI_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])
+/** More attempts + longer gaps help during sustained 503 "high demand" windows. */
+const GEMINI_MAX_ATTEMPTS     = 6
+const GEMINI_RETRY_BASE_MS    = 4_000
+
+class GeminiTransientError extends Error {
+  constructor(
+    readonly status: number,
+    bodySnippet: string,
+  ) {
+    super(`Gemini API error ${status}: ${bodySnippet}`)
+    this.name = 'GeminiTransientError'
+  }
+}
 
 /** Bilingual JSON payload can be large; 2048 was truncating mid-JSON. */
 const MAX_OUTPUT_TOKENS = 8192
@@ -228,59 +246,86 @@ interface GeminiResponse {
   }>
 }
 
-async function callGeminiApi(prompt: string, systemInstruction: string): Promise<string> {
+function resolvePrimaryModel(): string {
+  const fromEnv = process.env.GEMINI_MODEL?.trim()
+  return fromEnv || DEFAULT_MODEL
+}
+
+async function callGeminiApi(
+  prompt:            string,
+  systemInstruction: string,
+  modelId:           string,
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is not set')
 
-  const url  = `${GEMINI_URL}/${MODEL}:generateContent?key=${apiKey}`
+  const url  = `${GEMINI_URL}/${modelId}:generateContent?key=${apiKey}`
+  // REST schema uses camelCase (see ai.google.dev generateContent reference).
   const body = {
-    system_instruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generation_config: {
-      temperature:      0.2,   // low randomness for factual tasks
-      top_p:            0.8,
-      max_output_tokens: MAX_OUTPUT_TOKENS,
-      response_mime_type: 'application/json',
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents:          [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig:  {
+      temperature:       0.2,
+      topP:              0.8,
+      maxOutputTokens:   MAX_OUTPUT_TOKENS,
+      responseMimeType:  'application/json',
     },
-    safety_settings: [
-      { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_NONE' },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
     ],
   }
 
-  const controller = new AbortController()
-  const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const bodyJson = JSON.stringify(body)
 
-  try {
-    const res = await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-      signal:  controller.signal,
-    })
+  return withRetry(
+    async () => {
+      const controller = new AbortController()
+      const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS)
+      try {
+        const res = await fetch(url, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    bodyJson,
+          signal:  controller.signal,
+        })
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Gemini API error ${res.status}: ${text.slice(0, 200)}`)
-    }
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          const clip = text.slice(0, 200)
+          if (GEMINI_RETRYABLE_STATUS.has(res.status)) {
+            throw new GeminiTransientError(res.status, clip)
+          }
+          throw new Error(`Gemini API error ${res.status}: ${clip}`)
+        }
 
-    const data: GeminiResponse = await res.json()
-    const candidate = data.candidates?.[0]
-    const text      = candidate?.content?.parts?.[0]?.text ?? ''
-    if (!text) throw new Error('Gemini returned empty response')
+        const data: GeminiResponse = await res.json()
+        const candidate = data.candidates?.[0]
+        const text      = candidate?.content?.parts?.[0]?.text ?? ''
+        if (!text) throw new Error('Gemini returned empty response')
 
-    if (candidate?.finishReason === 'MAX_TOKENS') {
-      throw new Error(
-        'Gemini hit MAX_TOKENS (response truncated). Increase MAX_OUTPUT_TOKENS or shorten prompts.',
-      )
-    }
+        if (candidate?.finishReason === 'MAX_TOKENS') {
+          throw new Error(
+            'Gemini hit MAX_TOKENS (response truncated). Increase MAX_OUTPUT_TOKENS or shorten prompts.',
+          )
+        }
 
-    return text
-  } finally {
-    clearTimeout(timer)
-  }
+        return text
+      } finally {
+        clearTimeout(timer)
+      }
+    },
+    {
+      maxAttempts:    GEMINI_MAX_ATTEMPTS,
+      baseDelayMs:    GEMINI_RETRY_BASE_MS,
+      label:          modelId,
+      logNamespace:   'gemini',
+      shouldRetry:    (err) =>
+        err instanceof GeminiTransientError || err.name === 'AbortError',
+    },
+  )
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -308,10 +353,31 @@ export async function summarizeWithGemini(
     userPrompt += '\n\nIMPORTANT: Return ONLY the JSON object. No additional text.'
   }
 
-  const raw    = await callGeminiApi(userPrompt, systemInstruction)
-  const parsed = parseJsonResponse(raw)
+  const primary = resolvePrimaryModel()
 
-  return { raw, parsed, modelName: MODEL, modelVersion: null }
+  const run = async (modelId: string): Promise<SummarizeResult> => {
+    const raw    = await callGeminiApi(userPrompt, systemInstruction, modelId)
+    const parsed = parseJsonResponse(raw)
+    return { raw, parsed, modelName: modelId, modelVersion: null }
+  }
+
+  try {
+    return await run(primary)
+  } catch (err) {
+    const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim()
+    if (
+      fallback &&
+      fallback !== primary &&
+      err instanceof GeminiTransientError
+    ) {
+      console.warn(
+        `[gemini] model ${primary} failed after retries (${err.status}); ` +
+        `trying fallback ${fallback}`,
+      )
+      return await run(fallback)
+    }
+    throw err
+  }
 }
 
 /** Strip optional markdown code fences and parse JSON */

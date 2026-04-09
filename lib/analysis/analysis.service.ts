@@ -30,11 +30,24 @@ export interface AnalysisRunResult {
   id?:        string
   inputHash?: string
   error?:     string
+  /** Present when status === 'skipped' — why no Gemini run happened */
+  skipReason?: string
+  /** Present after a row is written — whether Gemini output passed validation */
+  isValid?: boolean
+  /** Present when status === 'fallback' — API/parse failure or validation errors (semicolon-separated) */
+  validationError?: string
+}
+
+export interface RunGoldAnalysisOptions {
+  /** If true, skip the idempotency check and call Gemini even when inputHash matches an existing row. */
+  bypassIdempotency?: boolean
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
-export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
+export async function runGoldAnalysis(
+  options: RunGoldAnalysisOptions = {},
+): Promise<AnalysisRunResult> {
   // 1. Compute deterministic price facts
   const priceFacts = await computePriceFacts()
   if (!priceFacts) {
@@ -65,13 +78,21 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
   const runWindow       = getRunWindow(nowUtcPlus7Hour)
 
   // 5. Idempotency check — skip if same hash already stored for this window
-  const existing = await db.goldAnalysis.findFirst({
-    where:   { runWindow, inputHash },
-    orderBy: { generatedAt: 'desc' },
-    select:  { id: true },
-  })
-  if (existing) {
-    return { status: 'skipped', id: existing.id, inputHash }
+  if (!options.bypassIdempotency) {
+    const existing = await db.goldAnalysis.findFirst({
+      where:   { runWindow, inputHash },
+      orderBy: { generatedAt: 'desc' },
+      select:  { id: true },
+    })
+    if (existing) {
+      return {
+        status:     'skipped',
+        id:         existing.id,
+        inputHash,
+        skipReason:
+          'Same price/news input was already analyzed for this run window (morning/evening). Cron uses this to avoid duplicate work.',
+      }
+    }
   }
 
   // 6. Call Gemini — retry once with stricter prompt on validation failure
@@ -79,10 +100,12 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
   let isValid          = true
   let validationError: string | null = null
   let modelVersion:    string | null = null
+  let modelNameForDb   = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash'
 
   try {
     const result1 = await summarizeWithGemini(bundle, false, runWindow)
     modelVersion   = result1.modelVersion
+    modelNameForDb = result1.modelName
 
     const check1 = validateOutput(result1.parsed, priceFacts, bundle)
     if (check1.ok) {
@@ -90,6 +113,7 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
     } else {
       // Retry with stricter prompt
       const result2 = await summarizeWithGemini(bundle, true, runWindow)
+      modelNameForDb = result2.modelName
       const check2  = validateOutput(result2.parsed, priceFacts, bundle)
 
       if (check2.ok) {
@@ -113,7 +137,7 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
     data: {
       basedOnPriceTimestamp: priceFacts.priceTimestamp,
       basedOnNewsWindow:     newsWindow,
-      modelName:             'gemini-2.5-flash',
+      modelName:             modelNameForDb,
       modelVersion,
       inputHash,
       runWindow,
@@ -127,5 +151,7 @@ export async function runGoldAnalysis(): Promise<AnalysisRunResult> {
     status:    isValid ? 'inserted' : 'fallback',
     id:        record.id,
     inputHash,
+    isValid,
+    ...(isValid ? {} : { validationError }),
   }
 }

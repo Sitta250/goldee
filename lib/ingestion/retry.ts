@@ -4,6 +4,8 @@ interface RetryOptions {
   maxAttempts?: number
   baseDelayMs?: number
   label?: string
+  /** Prefix for log lines; default `ingestion` → `[ingestion/myLabel]`. */
+  logNamespace?: string
   /**
    * Return false to abort retries immediately.
    * Default: never retry ValidationErrors (deterministic — retrying won't help).
@@ -23,10 +25,11 @@ export async function withRetry<T>(
   options: RetryOptions = {},
 ): Promise<T> {
   const {
-    maxAttempts = 3,
-    baseDelayMs = 1_000,
-    label       = 'operation',
-    shouldRetry = (err) => !(err instanceof ValidationError),
+    maxAttempts   = 3,
+    baseDelayMs   = 1_000,
+    label         = 'operation',
+    logNamespace  = 'ingestion',
+    shouldRetry   = (err) => !(err instanceof ValidationError),
   } = options
 
   let lastError!: Error
@@ -44,7 +47,7 @@ export async function withRetry<T>(
 
       const delayMs = baseDelayMs * 2 ** (attempt - 1)
       console.warn(
-        `[ingestion/${label}] attempt ${attempt}/${maxAttempts} failed: ` +
+        `[${logNamespace}/${label}] attempt ${attempt}/${maxAttempts} failed: ` +
         `${lastError.message} — retrying in ${delayMs}ms`,
       )
       await sleep(delayMs)
