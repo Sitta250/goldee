@@ -4,7 +4,8 @@ import { getHomepageData }        from '@/lib/queries/homepage'
 import { buildMetadata }          from '@/lib/utils/metadata'
 import { Container }              from '@/components/layout/Container'
 import { PriceHero }              from '@/components/price/PriceHero'
-import { TradingViewChart }       from '@/components/chart/TradingViewChart'
+import { TradingViewChart }            from '@/components/chart/TradingViewChart'
+import { TechnicalAnalysisWidget }    from '@/components/chart/TechnicalAnalysisWidget'
 import { DailySummaryCard }       from '@/components/home/DailySummaryCard'
 import { GoldAnalysisCard }       from '@/components/home/GoldAnalysisCard'
 import { ArticlesSectionHeader }  from '@/components/home/ArticlesSectionHeader'
@@ -54,10 +55,13 @@ export default async function HomePage() {
             {/* 2. TradingView chart — XAU/USD advanced chart widget */}
             <TradingViewChart />
 
-            {/* 3. In-content ad slot */}
+            {/* 3. Technical analysis gauges — Oscillators + Moving Averages */}
+            <TechnicalAnalysisWidget />
+
+            {/* 5. In-content ad slot */}
             <AdRectangle />
 
-            {/* 4. Plain-language daily summary (skipped if not yet generated) */}
+            {/* 6. Plain-language daily summary (skipped if not yet generated) */}
             {summary && (
               <DailySummaryCard
                 summaryTh={summary.summaryTh}

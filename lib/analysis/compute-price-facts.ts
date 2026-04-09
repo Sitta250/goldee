@@ -54,7 +54,11 @@ export async function computePriceFacts(): Promise<PriceFacts | null> {
 
   if (!latest) return null
 
-  const now          = latest.fetchedAt
+  // Use wall-clock time for cutoffs, not the snapshot timestamp.
+  // With dedup (no new rows when price is unchanged), latest.fetchedAt can be
+  // days old — using it as "now" shifts the 24h/7d windows backward, causing
+  // snapshotBefore() to find nothing and fall back to 0 for both comparisons.
+  const now          = new Date()
   const current      = Number(latest.goldBarSell)
 
   const yesterday    = new Date(now.getTime() - 24 * 60 * 60 * 1_000)
@@ -80,7 +84,7 @@ export async function computePriceFacts(): Promise<PriceFacts | null> {
 
   return {
     currentPrice:             current,
-    priceTimestamp:           now,
+    priceTimestamp:           latest.fetchedAt,
     change_vs_yesterday_abs:  round2(changeYdayAbs),
     change_vs_yesterday_pct:  round2(changeYdayPct),
     change_vs_7d_abs:         round2(change7dAbs),

@@ -3,6 +3,9 @@ import { revalidatePath } from 'next/cache'
 import { ingestGoldPrice } from '@/lib/ingestion/ingestion.service'
 import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
 
+// Run from Singapore — closest Vercel region to Thailand, avoids IP blocks
+export const preferredRegion = 'sin1'
+
 // Legacy scheduler endpoint.
 // Kept for backward compatibility while GitHub Actions fetches upstream data and
 // posts normalized payloads to /api/scheduler/ingest.

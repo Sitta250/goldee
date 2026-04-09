@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 
 const SYMBOLS = [
-  { id: 'XAUUSD',                                  label: 'XAU/USD',  desc: 'ราคาทองโลก (USD)' },
   { id: 'TVC:GOLD*FX_IDC:USDTHB*0.47295227',      label: 'GOLD965',  desc: 'ทองคำแท่ง 96.5% (THB)' },
+  { id: 'XAUUSD',                                  label: 'XAU/USD',  desc: 'ราคาทองโลก (USD)' },
 ] as const
 
 type SymbolId = (typeof SYMBOLS)[number]['id']
 
 export function TradingViewChart() {
-  const [symbol, setSymbol] = useState<SymbolId>('XAUUSD')
+  const [symbol, setSymbol] = useState<SymbolId>('TVC:GOLD*FX_IDC:USDTHB*0.47295227')
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -55,16 +55,10 @@ export function TradingViewChart() {
       aria-labelledby="chart-heading"
       className="rounded-card bg-white border border-gray-100 shadow-card p-4 space-y-3"
     >
-      {/* Header row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 id="chart-heading" className="text-sm font-semibold text-gray-700">
-            กราฟราคาทองคำ — {active.desc}
-          </h2>
-        </div>
-
+      {/* Header row — toggle left, description right */}
+      <div className="flex items-center gap-3">
         {/* Toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 self-start sm:self-auto">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
           {SYMBOLS.map((s) => (
             <button
               key={s.id}
@@ -79,6 +73,10 @@ export function TradingViewChart() {
             </button>
           ))}
         </div>
+
+        <h2 id="chart-heading" className="text-sm text-gray-400">
+          {active.desc}
+        </h2>
       </div>
 
       <div

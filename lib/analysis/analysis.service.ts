@@ -152,6 +152,6 @@ export async function runGoldAnalysis(
     id:        record.id,
     inputHash,
     isValid,
-    ...(isValid ? {} : { validationError }),
+    ...(isValid ? {} : { validationError: validationError ?? undefined }),
   }
 }

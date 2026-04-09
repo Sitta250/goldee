@@ -106,15 +106,18 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
       </div>
 
       {/* ── Section 1: Thai Gold Today ───────────────────────────────────────── */}
-      <div className="px-5 py-4 space-y-1 border-b border-gray-50">
+      <div className="px-5 py-4 border-b border-gray-50">
         <SectionLabel>{headingPriceSection}</SectionLabel>
-        <p className="text-sm text-gray-700 leading-[1.8]">{t(pa.summary)}</p>
+        <p className="text-sm text-gray-700 leading-[1.8] mt-1">{t(pa.summary)}</p>
+        <div className="flex justify-end mt-2">
+          <SourceAvatars sources={SOURCES_THAI_GOLD} />
+        </div>
       </div>
 
       {/* ── Section 2: Global Drivers ────────────────────────────────────────── */}
-      <div className="px-5 py-4 space-y-3 border-b border-gray-50">
+      <div className="px-5 py-4 border-b border-gray-50">
         <SectionLabel>{headingGlobalSection}</SectionLabel>
-        <ul className="space-y-2.5">
+        <ul className="space-y-2.5 mt-2">
           {market_drivers.map((driver, i) => (
             <li key={i} className="flex gap-2.5">
               {/* Confidence dot */}
@@ -129,7 +132,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
                   </span>
                   <ImpactBadge impactType={driver.impact_type} lang={lang} />
                 </div>
-                <p className="text-xs text-gray-600 leading-relaxed">
+                <p className="text-sm text-gray-700 leading-relaxed">
                   {t(driver.summary)}
                 </p>
                 {driver.source_count > 0 && (
@@ -142,15 +145,21 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
             </li>
           ))}
         </ul>
+        <div className="flex justify-end mt-3">
+          <SourceAvatars sources={SOURCES_GLOBAL_DRIVERS} />
+        </div>
       </div>
 
       {/* ── Section 3: Expert View ───────────────────────────────────────────── */}
-      <div className="px-5 py-4 space-y-2 border-b border-gray-50">
-        <div className="flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-gray-50">
+        <div className="flex items-center justify-between mb-1">
           <SectionLabel>{headingExpertSection}</SectionLabel>
           <TrendBadge trend={expert_view.overall_trend} lang={lang} />
         </div>
-        <p className="text-xs text-gray-600 leading-relaxed">{t(expert_view.summary)}</p>
+        <p className="text-sm text-gray-700 leading-relaxed">{t(expert_view.summary)}</p>
+        <div className="flex justify-end mt-2">
+          <SourceAvatars sources={SOURCES_EXPERT_VIEW} />
+        </div>
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
@@ -172,13 +181,53 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
   )
 }
 
+// ─── Source definitions per section ──────────────────────────────────────────
+
+interface SourceDef { name: string; domain: string }
+
+const SOURCES_THAI_GOLD: SourceDef[] = [
+  { name: 'CHNWT',   domain: 'chnwt.dev' },
+]
+
+const SOURCES_GLOBAL_DRIVERS: SourceDef[] = [
+  { name: 'Kitco',      domain: 'kitco.com' },
+  { name: 'Reuters',    domain: 'reuters.com' },
+  { name: 'MarketWatch', domain: 'marketwatch.com' },
+]
+
+const SOURCES_EXPERT_VIEW: SourceDef[] = [
+  { name: 'World Gold Council', domain: 'gold.org' },
+  { name: 'Kitco Commentary',   domain: 'kitco.com' },
+  { name: 'BullionVault',       domain: 'bullionvault.com' },
+]
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+    <p className="text-sm font-semibold tracking-wide text-gray-800">
       {children}
     </p>
+  )
+}
+
+function SourceAvatars({ sources }: { sources: SourceDef[] }) {
+  return (
+    <div className="flex items-center">
+      {sources.map((src, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={src.domain + i}
+          src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`}
+          alt={src.name}
+          title={src.name}
+          width={20}
+          height={20}
+          className="w-5 h-5 rounded-full ring-2 ring-white bg-gray-100 object-cover"
+          style={{ marginLeft: i > 0 ? '-6px' : 0 }}
+        />
+      ))}
+    </div>
   )
 }
 
