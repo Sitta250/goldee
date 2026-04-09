@@ -10,9 +10,15 @@
  */
 
 import { useLanguage } from '@/contexts/LanguageContext'
-import type { GoldAnalysisRecord } from '@/types/analysis'
+import type { Bias, GoldAnalysisRecord, TrendDirection } from '@/types/analysis'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TREND_ICON: Record<TrendDirection, string> = {
+  uptrend:   '↑',
+  downtrend: '↓',
+  sideways:  '→',
+}
 
 const DIRECTION_ICON: Record<string, string> = {
   up:   '↑',
@@ -57,8 +63,9 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
   const { payload, generatedAt, isValid } = analysis
   const { price_analysis: pa, market_drivers, expert_view, disclaimer } = payload
 
-  const dirIcon  = DIRECTION_ICON[pa.vs_yesterday.direction] ?? '→'
-  const dirClass = DIRECTION_CLASS[pa.vs_yesterday.direction] ?? 'text-gray-500'
+  const dirIcon     = DIRECTION_ICON[pa.vs_yesterday.direction] ?? '→'
+  const dirClass    = DIRECTION_CLASS[pa.vs_yesterday.direction] ?? 'text-gray-500'
+  const signals     = payload.price_signals
 
   const headingPriceSection  = lang === 'th' ? 'ราคาทองไทยวันนี้'  : 'Thai Gold Today'
   const headingGlobalSection = lang === 'th' ? 'ปัจจัยตลาดโลก'     : 'Global Drivers'
@@ -103,6 +110,23 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
             pct={pa.vs_7d.percent_change}
           />
         </div>
+
+        {/* Signal badges */}
+        {signals && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <TrendDirectionBadge trend={signals.trend_direction} lang={lang} />
+            <BiasBadge
+              label={lang === 'th' ? 'วันนี้' : 'Today'}
+              bias={signals.bias_today}
+              lang={lang}
+            />
+            <BiasBadge
+              label={lang === 'th' ? '1 สัปดาห์' : '1 week'}
+              bias={signals.bias_week}
+              lang={lang}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Section 1: Thai Gold Today ───────────────────────────────────────── */}
@@ -263,6 +287,46 @@ function ImpactBadge({ impactType, lang }: { impactType: string; lang: 'th' | 'e
   return (
     <span className={`inline-block rounded border px-1.5 py-0 text-[10px] font-medium ${cls}`}>
       {label}
+    </span>
+  )
+}
+
+function TrendDirectionBadge({ trend, lang }: { trend: TrendDirection; lang: 'th' | 'en' }) {
+  const labels: Record<TrendDirection, Record<'th' | 'en', string>> = {
+    uptrend:   { th: 'ขาขึ้น',  en: 'Uptrend'   },
+    downtrend: { th: 'ขาลง',    en: 'Downtrend'  },
+    sideways:  { th: 'ทรงตัว',  en: 'Sideways'   },
+  }
+  const classes: Record<TrendDirection, string> = {
+    uptrend:   'bg-green-50 text-green-700 border-green-100',
+    downtrend: 'bg-red-50 text-red-600 border-red-100',
+    sideways:  'bg-gray-50 text-gray-500 border-gray-100',
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium ${classes[trend]}`}>
+      <span aria-hidden>{TREND_ICON[trend]}</span>
+      {labels[trend][lang]}
+    </span>
+  )
+}
+
+function BiasBadge({ label, bias, lang }: { label: string; bias: Bias; lang: 'th' | 'en' }) {
+  const biasLabels: Record<Bias, Record<'th' | 'en', string>> = {
+    bullish: { th: 'บวก',    en: 'Bullish' },
+    bearish: { th: 'ลบ',     en: 'Bearish' },
+    neutral: { th: 'เป็นกลาง', en: 'Neutral' },
+  }
+  const classes: Record<Bias, string> = {
+    bullish: 'bg-green-50 text-green-700 border-green-100',
+    bearish: 'bg-red-50 text-red-600 border-red-100',
+    neutral: 'bg-gray-50 text-gray-500 border-gray-100',
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium ${classes[bias]}`}>
+      <span className="text-gray-400">{label}:</span>
+      {biasLabels[bias][lang]}
     </span>
   )
 }

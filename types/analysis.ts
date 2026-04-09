@@ -44,10 +44,23 @@ export interface ExpertViewSection {
 }
 
 export interface GoldAnalysisPayload {
-  price_analysis: PriceAnalysisSection
-  market_drivers: MarketDriver[]      // 2–4 items
-  expert_view:    ExpertViewSection
-  disclaimer:     AnalysisText
+  price_analysis:  PriceAnalysisSection
+  /** Computed by backend, echoed by LLM. Optional for backwards compat with old DB records. */
+  price_signals?:  PriceSignals
+  market_drivers:  MarketDriver[]      // 2–4 items
+  expert_view:     ExpertViewSection
+  disclaimer:      AnalysisText
+}
+
+// ─── Price signals (computed deterministically from snapshots, echoed by LLM) ──
+
+export type TrendDirection = 'uptrend' | 'downtrend' | 'sideways'
+export type Bias           = 'bullish' | 'bearish'  | 'neutral'
+
+export interface PriceSignals {
+  trend_direction: TrendDirection
+  bias_today:      Bias
+  bias_week:       Bias
 }
 
 // ─── Price facts (computed deterministically from DB snapshots) ───────────────
@@ -65,6 +78,15 @@ export interface PriceFacts {
 
   direction_today: 'up' | 'down' | 'flat'
   direction_week:  'up' | 'down' | 'flat'
+
+  /** Moving averages over daily closes (null when insufficient history) */
+  ma_50:  number | null
+  ma_200: number | null
+
+  /** Derived trend / bias signals */
+  trend_direction: TrendDirection
+  bias_today:      Bias
+  bias_week:       Bias
 }
 
 // ─── News item (output of fetch + rank pipeline) ──────────────────────────────

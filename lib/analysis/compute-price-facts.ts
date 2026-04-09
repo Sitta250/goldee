@@ -6,13 +6,80 @@
  */
 
 import { db }           from '@/lib/db'
-import type { PriceFacts } from '@/types/analysis'
+import type { Bias, PriceFacts, TrendDirection } from '@/types/analysis'
 
-const FLAT_THRESHOLD_PCT = 0.05  // ≤0.05% change is considered "flat"
+const FLAT_THRESHOLD_PCT  = 0.05  // ≤0.05% change is considered "flat"
+/** ±0.10% intraday: small noise should read neutral, not bullish/bearish */
+const BIAS_THRESHOLD_TODAY = 0.10
+/** ±0.20% over 7 days: weekly bias needs a slightly larger move to register */
+const BIAS_THRESHOLD_WEEK  = 0.20
 
 function direction(pct: number): 'up' | 'down' | 'flat' {
   if (Math.abs(pct) <= FLAT_THRESHOLD_PCT) return 'flat'
   return pct > 0 ? 'up' : 'down'
+}
+
+function biasFromPct(pct: number, threshold: number): Bias {
+  if (pct >  threshold) return 'bullish'
+  if (pct < -threshold) return 'bearish'
+  return 'neutral'
+}
+
+function trendDirection(
+  current: number,
+  ma50:    number | null,
+  ma200:   number | null,
+): TrendDirection {
+  if (ma50 !== null && ma200 !== null) {
+    if (current > ma50 && current > ma200) return 'uptrend'
+    if (current < ma50 && current < ma200) return 'downtrend'
+    return 'sideways'
+  }
+  // Fallback when only MA50 is available (< 200 days of history)
+  if (ma50 !== null) {
+    if (current > ma50) return 'uptrend'
+    if (current < ma50) return 'downtrend'
+  }
+  return 'sideways'
+}
+
+/**
+ * Returns one close price per UTC+7 calendar day for the last `days` days,
+ * using the latest available snapshot in each day as the "close".
+ * Returns an array ordered oldest→newest.
+ */
+async function getDailyCloses(days: number): Promise<number[]> {
+  // Fetch a buffer of extra days to guarantee we can fill the requested window
+  const cutoff = new Date(Date.now() - (days + 15) * 24 * 60 * 60 * 1_000)
+
+  const rows = await db.goldPriceSnapshot.findMany({
+    where:   { fetchedAt: { gte: cutoff } },
+    orderBy: { fetchedAt: 'asc' },
+    select:  { goldBarSell: true, fetchedAt: true },
+  })
+
+  // Group by UTC+7 day key, keep the latest price in each day
+  const UTC7_MS  = 7 * 60 * 60 * 1_000
+  const byDay    = new Map<string, number>()
+
+  for (const row of rows) {
+    const dayKey = new Date(row.fetchedAt.getTime() + UTC7_MS)
+      .toISOString()
+      .slice(0, 10)
+    byDay.set(dayKey, Number(row.goldBarSell))
+  }
+
+  const closes = [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, price]) => price)
+
+  return closes.slice(-days)
+}
+
+function computeMA(closes: number[], period: number): number | null {
+  if (closes.length < period) return null
+  const slice = closes.slice(-period)
+  return round2(slice.reduce((sum, p) => sum + p, 0) / period)
 }
 
 /** Most recent goldBarSell price for a window ending at `before` */
@@ -64,10 +131,11 @@ export async function computePriceFacts(): Promise<PriceFacts | null> {
   const yesterday    = new Date(now.getTime() - 24 * 60 * 60 * 1_000)
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1_000)
 
-  const [priceYday, price7d, range] = await Promise.all([
+  const [priceYday, price7d, range, dailyCloses] = await Promise.all([
     snapshotBefore(yesterday),
     snapshotBefore(sevenDaysAgo),
     intradayRange(now),
+    getDailyCloses(200),
   ])
 
   const changeYdayAbs = priceYday != null ? current - priceYday : 0
@@ -82,6 +150,9 @@ export async function computePriceFacts(): Promise<PriceFacts | null> {
 
   const intradayRangeAbs = range ? range.hi - range.lo : 0
 
+  const ma50  = computeMA(dailyCloses, 50)
+  const ma200 = computeMA(dailyCloses, 200)
+
   return {
     currentPrice:             current,
     priceTimestamp:           latest.fetchedAt,
@@ -92,6 +163,11 @@ export async function computePriceFacts(): Promise<PriceFacts | null> {
     intraday_range_abs:       round2(intradayRangeAbs),
     direction_today:          direction(changeYdayPct),
     direction_week:           direction(change7dPct),
+    ma_50:                    ma50,
+    ma_200:                   ma200,
+    trend_direction:          trendDirection(current, ma50, ma200),
+    bias_today:               biasFromPct(changeYdayPct, BIAS_THRESHOLD_TODAY),
+    bias_week:                biasFromPct(change7dPct,   BIAS_THRESHOLD_WEEK),
   }
 }
 

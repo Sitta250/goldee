@@ -19,9 +19,13 @@ export function buildInputBundle(
 export function hashInputBundle(bundle: AnalysisInputBundle): string {
   const stable = JSON.stringify({
     price: {
-      current:    bundle.priceFacts.currentPrice,
-      ydayDelta:  bundle.priceFacts.change_vs_yesterday_abs,
-      weekDelta:  bundle.priceFacts.change_vs_7d_abs,
+      current:        bundle.priceFacts.currentPrice,
+      ydayDelta:      bundle.priceFacts.change_vs_yesterday_abs,
+      weekDelta:      bundle.priceFacts.change_vs_7d_abs,
+      // Discrete signals: any change in enum value should trigger regeneration
+      trendDirection: bundle.priceFacts.trend_direction,
+      biasToday:      bundle.priceFacts.bias_today,
+      biasWeek:       bundle.priceFacts.bias_week,
     },
     // Use title + publishedAt as the fingerprint — summaries can be truncated differently
     news:    bundle.newsItems.map((n) => `${n.title}|${n.publishedAt.toISOString()}`),

@@ -18,6 +18,8 @@ import type {
   PriceFacts,
   AnalysisText,
   AnalysisInputBundle,
+  TrendDirection,
+  Bias,
 } from '@/types/analysis'
 import { EXPERT_SOURCE_NAMES } from './fetch-expert-commentary'
 
@@ -119,6 +121,21 @@ function checkSchema(payload: unknown): string[] {
       errors.push('expert_view.consensus_strength must be low|medium|high')
   }
 
+  // price_signals
+  const ps = p.price_signals as Record<string, unknown> | undefined
+  if (!ps) {
+    errors.push('missing price_signals')
+  } else {
+    const validTrend: TrendDirection[] = ['uptrend', 'downtrend', 'sideways']
+    const validBias:  Bias[]           = ['bullish', 'bearish', 'neutral']
+    if (!validTrend.includes(ps.trend_direction as TrendDirection))
+      errors.push('price_signals.trend_direction must be uptrend|downtrend|sideways')
+    if (!validBias.includes(ps.bias_today as Bias))
+      errors.push('price_signals.bias_today must be bullish|bearish|neutral')
+    if (!validBias.includes(ps.bias_week as Bias))
+      errors.push('price_signals.bias_week must be bullish|bearish|neutral')
+  }
+
   // disclaimer
   if (!isAnalysisText(p.disclaimer)) errors.push('disclaimer must be {th,en}')
 
@@ -157,6 +174,22 @@ function checkNumerics(payload: GoldAnalysisPayload, priceFacts: PriceFacts): st
     pa.vs_7d.percent_change,
     priceFacts.change_vs_7d_pct,
   )
+
+  return errors
+}
+
+/** price_signals values echoed by the LLM must match backend-computed signals */
+function checkSignals(payload: GoldAnalysisPayload, priceFacts: PriceFacts): string[] {
+  const errors: string[] = []
+  const ps = payload.price_signals
+  if (!ps) return errors   // schema check already flagged this
+
+  if (ps.trend_direction !== priceFacts.trend_direction)
+    errors.push(`price_signals.trend_direction: LLM echoed "${ps.trend_direction}", expected "${priceFacts.trend_direction}"`)
+  if (ps.bias_today !== priceFacts.bias_today)
+    errors.push(`price_signals.bias_today: LLM echoed "${ps.bias_today}", expected "${priceFacts.bias_today}"`)
+  if (ps.bias_week !== priceFacts.bias_week)
+    errors.push(`price_signals.bias_week: LLM echoed "${ps.bias_week}", expected "${priceFacts.bias_week}"`)
 
   return errors
 }
@@ -268,6 +301,7 @@ export function validateOutput(
   const errors = [
     ...checkSchema(payload),
     ...checkNumerics(payload, priceFacts),
+    ...checkSignals(payload, priceFacts),
     ...checkBannedLanguage(payload),
     ...checkSourceProvenance(payload, bundle),
   ]
@@ -304,6 +338,11 @@ export function buildFallbackPayload(priceFacts: PriceFacts): GoldAnalysisPayloa
         absolute_change: priceFacts.change_vs_7d_abs,
         percent_change:  priceFacts.change_vs_7d_pct,
       },
+    },
+    price_signals: {
+      trend_direction: priceFacts.trend_direction,
+      bias_today:      priceFacts.bias_today,
+      bias_week:       priceFacts.bias_week,
     },
     market_drivers: [
       {

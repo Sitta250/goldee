@@ -59,8 +59,16 @@ const REQUEST_HEADERS: Record<string, string> = {
 // YGTA added new field names — add them here, don't touch the logic below.
 
 const FIELD_ALIASES = {
-  /** Price announcement ID */
-  pid:         ['goldPriceID', 'GoldPriceID', 'Pid', 'PID', 'pid', 'PriceId'],
+  /**
+   * Human "ครั้งที่" sequence from YGTA (`seq` / `priceSeq`).
+   * Must come before `goldPriceID`, which is an internal row id (large integer), not the announcement ordinal.
+   */
+  pid:         [
+    'seq', 'Seq', 'SEQ',
+    'priceSeq', 'PriceSeq', 'price_seq',
+    'Pid', 'PID', 'pid', 'PriceId',
+    'goldPriceID', 'GoldPriceID',
+  ],
 
   /** Gold bar: price YGTA will pay to BUY from the public */
   barBuy:      ['bL_BuyPrice', 'BuyBar', 'buy_bar', 'buyBar', 'BarBuy', 'Bar_Buy', 'BuyBar96_5'],

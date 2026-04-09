@@ -109,6 +109,11 @@ vs 7 days ago: ${pf.change_vs_7d_abs >= 0 ? '+' : ''}${pf.change_vs_7d_abs.toFix
 Intraday range: ${pf.intraday_range_abs.toFixed(2)} THB
 Direction today: ${pf.direction_today}
 Direction this week: ${pf.direction_week}
+MA50 (50-day moving average): ${pf.ma_50 != null ? pf.ma_50.toFixed(2) + ' THB' : 'insufficient data'}
+MA200 (200-day moving average): ${pf.ma_200 != null ? pf.ma_200.toFixed(2) + ' THB' : 'insufficient data'}
+Trend direction: ${pf.trend_direction}
+Bias today: ${pf.bias_today}
+Bias this week: ${pf.bias_week}
 
 === NEWS ITEMS (last ~24–48h window as ranked, max 12) ===
 ${newsBlock}
@@ -132,6 +137,11 @@ function buildJsonSchemaExample(pf: PriceFacts): string {
       "absolute_change": ${pf.change_vs_7d_abs},
       "percent_change":  ${pf.change_vs_7d_pct}
     }
+  },
+  "price_signals": {
+    "trend_direction": "${pf.trend_direction}",
+    "bias_today":      "${pf.bias_today}",
+    "bias_week":       "${pf.bias_week}"
   },
   "market_drivers": [
     {

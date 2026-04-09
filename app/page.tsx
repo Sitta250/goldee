@@ -4,15 +4,13 @@ import { getHomepageData }        from '@/lib/queries/homepage'
 import { buildMetadata }          from '@/lib/utils/metadata'
 import { Container }              from '@/components/layout/Container'
 import { PriceHero }              from '@/components/price/PriceHero'
-import { TradingViewChart }            from '@/components/chart/TradingViewChart'
-import { TechnicalAnalysisWidget }    from '@/components/chart/TechnicalAnalysisWidget'
+import { TradingViewChart }        from '@/components/chart/TradingViewChart'
 import { DailySummaryCard }       from '@/components/home/DailySummaryCard'
 import { GoldAnalysisCard }       from '@/components/home/GoldAnalysisCard'
 import { ArticlesSectionHeader }  from '@/components/home/ArticlesSectionHeader'
 import { FaqSection }             from '@/components/home/FaqSection'
 import { CalculatorPreview }      from '@/components/calculator/CalculatorPreview'
 import { ArticleGrid }            from '@/components/articles/ArticleGrid'
-import { AdRectangle }            from '@/components/ads/AdRectangle'
 import { AdSidebar }              from '@/components/ads/AdSidebar'
 import { Divider }                from '@/components/ui/Divider'
 
@@ -52,14 +50,8 @@ export default async function HomePage() {
               <NoPriceData />
             )}
 
-            {/* 2. TradingView chart — XAU/USD advanced chart widget */}
+            {/* 3. Price charts — toggle between Thai Gold (THB) and XAU/USD */}
             <TradingViewChart />
-
-            {/* 3. Technical analysis gauges — Oscillators + Moving Averages */}
-            <TechnicalAnalysisWidget />
-
-            {/* 5. In-content ad slot */}
-            <AdRectangle />
 
             {/* 6. Plain-language daily summary (skipped if not yet generated) */}
             {summary && (

@@ -1,31 +1,30 @@
 import type { Metadata } from 'next'
 
 import {
-  getHistoryChartData,
   getHistoryStats,
   getHistoryTableRows,
   type HistoryTimeframe,
 } from '@/lib/queries/history'
 
-import { buildMetadata }        from '@/lib/utils/metadata'
-import { Container }            from '@/components/layout/Container'
-import { HistoryChart }         from '@/components/history/HistoryChart'
-import { HistoryTimeframeNav }  from '@/components/history/HistoryTimeframeNav'
-import { StatCards }            from '@/components/history/StatCards'
-import { HistoryTable }         from '@/components/history/HistoryTable'
-import { MethodologyNote }      from '@/components/history/MethodologyNote'
-import { AdRectangle }          from '@/components/ads/AdRectangle'
-import { Divider }              from '@/components/ui/Divider'
+import { buildMetadata }             from '@/lib/utils/metadata'
+import { Container }                 from '@/components/layout/Container'
+import { TradingViewChart }          from '@/components/chart/TradingViewChart'
+import { HistoryTimeframeNav }       from '@/components/history/HistoryTimeframeNav'
+import { StatCards }                 from '@/components/history/StatCards'
+import { HistoryTable }              from '@/components/history/HistoryTable'
+import { MethodologyNote }           from '@/components/history/MethodologyNote'
+import { Divider }                   from '@/components/ui/Divider'
+import { HistoryLoadingProvider }    from '@/components/history/HistoryLoadingContext'
+import { TableLoadingWrapper }       from '@/components/history/TableLoadingWrapper'
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
 export const metadata: Metadata = buildMetadata({
   title:       'ประวัติราคาทอง',
-  description: 'ดูประวัติราคาทองคำย้อนหลัง ทองคำแท่ง 96.5% และทองรูปพรรณ พร้อมกราฟแนวโน้ม สถิติสูง-ต่ำ และตารางราคาตั้งแต่ 7 วันจนถึงทั้งหมด',
+  description: 'ดูประวัติราคาทองคำย้อนหลัง ทองคำแท่ง 96.5% และทองรูปพรรณ พร้อมกราฟ TradingView สถิติสูง-ต่ำ และตารางราคาตั้งแต่ 7 วันจนถึงทั้งหมด',
   canonical:   '/history',
 })
 
-// Revalidate matches the cron interval
 export const revalidate = 300
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,9 +34,7 @@ const DEFAULT_RANGE: HistoryTimeframe  = '7D'
 const PER_PAGE = 30
 
 function parseRange(raw: string | undefined): HistoryTimeframe {
-  if (raw && (VALID_RANGES as string[]).includes(raw)) {
-    return raw as HistoryTimeframe
-  }
+  if (raw && (VALID_RANGES as string[]).includes(raw)) return raw as HistoryTimeframe
   return DEFAULT_RANGE
 }
 
@@ -57,71 +54,78 @@ export default async function HistoryPage({
   const range  = parseRange(params.range)
   const page   = parsePage(params.page)
 
-  // Three parallel queries — chart, stats, table — each scoped to the same range
-  const [chartData, stats, { rows, total }] = await Promise.all([
-    getHistoryChartData(range),
+  const [stats, { rows, total, olderRowBarSell }] = await Promise.all([
     getHistoryStats(range),
     getHistoryTableRows(page, PER_PAGE, range),
   ])
 
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+  const totalPages            = Math.max(1, Math.ceil(total / PER_PAGE))
+  const hasAnnouncementNumbers = rows.some(
+    (r) => r.dayOrdinalDisplay != null || r.announcementNumber !== null,
+  )
 
   return (
     <div className="py-6 sm:py-8">
       <Container>
-        <div className="space-y-8">
+        {/*
+          HistoryLoadingProvider is a client component that shares loading state
+          between HistoryTimeframeNav (sets isLoading on click) and
+          TableLoadingWrapper (shows overlay while isLoading).
+          Server-rendered children are passed through as React children — this
+          is the standard Next.js App Router "client shell, server children" pattern.
+        */}
+        <HistoryLoadingProvider>
+          <div className="space-y-8">
 
-          {/* ── 1. Page heading ─────────────────────────────────────────────── */}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทอง</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              ราคาทองคำแท่ง 96.5% และทองรูปพรรณ บันทึกทุก 5 นาที
-            </p>
-          </div>
-
-          {/* ── 2. Chart section ─────────────────────────────────────────────── */}
-          <section
-            aria-labelledby="chart-section-heading"
-            className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h2
-                id="chart-section-heading"
-                className="text-sm font-semibold text-gray-700"
-              >
-                แนวโน้มราคาทอง
-              </h2>
-              {/* Plain <Link> buttons — clicking triggers server re-render with new range */}
-              <HistoryTimeframeNav active={range} />
+            {/* ── 1. Page heading ──────────────────────────────────────────── */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทอง</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                ราคาทองคำแท่ง 96.5% และทองรูปพรรณ อ้างอิงจากสมาคมค้าทองคำแห่งประเทศไทย
+              </p>
             </div>
 
-            {/* Client component — metric toggle switches displayed column locally,
-                no re-fetch. All 4 price columns are already in chartData.          */}
-            <HistoryChart data={chartData} activeRange={range} />
-          </section>
+            {/* ── 2. TradingView chart (Thai gold THB default) ─────────────── */}
+            <TradingViewChart />
 
-          {/* ── 3. Stat cards (bar sell by default) ─────────────────────────── */}
-          <StatCards stats={stats} range={range} />
+            {/* ── 3. Timeframe selector + stat cards ───────────────────────── */}
+            <section aria-labelledby="stats-section-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h2
+                  id="stats-section-heading"
+                  className="text-sm font-semibold text-gray-700"
+                >
+                  สถิติราคาตามช่วงเวลา
+                </h2>
+                <HistoryTimeframeNav active={range} />
+              </div>
 
-          <Divider />
+              <TableLoadingWrapper>
+                <StatCards stats={stats} range={range} />
+              </TableLoadingWrapper>
+            </section>
 
-          {/* ── 4. Historical table with pagination ─────────────────────────── */}
-          <HistoryTable
-            rows={rows}
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            range={range}
-            perPage={PER_PAGE}
-          />
+            <Divider />
 
-          {/* ── 5. Ad slot ──────────────────────────────────────────────────── */}
-          <AdRectangle />
+            {/* ── 4. Historical table with pagination ──────────────────────── */}
+            <TableLoadingWrapper>
+              <HistoryTable
+                rows={rows}
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                range={range}
+                perPage={PER_PAGE}
+                hasAnnouncementNumbers={hasAnnouncementNumbers}
+                olderRowBarSell={olderRowBarSell}
+              />
+            </TableLoadingWrapper>
 
-          {/* ── 6. Methodology note ─────────────────────────────────────────── */}
-          <MethodologyNote />
+            {/* ── 5. Methodology note ──────────────────────────────────────── */}
+            <MethodologyNote />
 
-        </div>
+          </div>
+        </HistoryLoadingProvider>
       </Container>
     </div>
   )
