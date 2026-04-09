@@ -3,26 +3,39 @@
 // When you swap the data source, only the fetcher + the relevant transform
 // function below needs to change. No other file is affected.
 
-import type { RawGoldPrice } from './fetcher'
+import type { RawGoldPrice } from './types'
 
-// ─── Example: YGTA (ราคาทองคำสมาคมฯ) response shape ─────────────────────────
-// TODO: Update this interface to match the actual API response when confirmed.
+// ─── YGTA (goldtraders.or.th) response shape ─────────────────────────────────
+// Actual shape from https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false
 interface YgtaApiResponse {
-  buy_bar:      number
-  sell_bar:     number
-  buy_jewelry:  number
-  sell_jewelry: number
-  updated_at:   string
+  goldPriceID:              number
+  asTime:                   string   // e.g. "2026-04-09T13:39:00"
+  seq:                      number
+  priceSeq:                 number
+  bL_BuyPrice:              number   // gold bar buy  (THB per 1 baht-weight)
+  bL_SellPrice:             number   // gold bar sell (THB per 1 baht-weight)
+  oM965_BuyPrice:           number   // 96.5% jewelry buy  (THB per 1 baht-weight)
+  oM965_SellPrice:          number   // 96.5% jewelry sell (THB per 1 baht-weight)
+  oM965_BuyGPrice:          number   // 96.5% jewelry buy  (THB per gram)
+  goldSpot:                 number   // spot gold (THB per gram)
+  bahtPerUSD:               number   // USD → THB exchange rate
+  priceChangeFromPrevRow:   number
+  priceChangeFromPrevDayLast: number
+  [key: string]:            unknown
 }
 
 export function transformYgta(raw: YgtaApiResponse): RawGoldPrice {
   return {
-    goldBarBuy:  raw.buy_bar,
-    goldBarSell: raw.sell_bar,
-    jewelryBuy:  raw.buy_jewelry,
-    jewelrySell: raw.sell_jewelry,
-    source:      'ygta',
-    rawPayload:  raw as unknown as Record<string, unknown>,
+    goldBarBuy:         raw.bL_BuyPrice,
+    goldBarSell:        raw.bL_SellPrice,
+    jewelryBuy:         raw.oM965_BuyPrice,
+    jewelrySell:        raw.oM965_SellPrice,
+    capturedAt:         new Date(raw.asTime),
+    announcementNumber: String(raw.seq),
+    source:             'ygta',
+    sourceName:         'สมาคมค้าทองคำ',
+    usdThb:             raw.bahtPerUSD,
+    rawPayload:         raw as unknown as Record<string, unknown>,
   }
 }
 
