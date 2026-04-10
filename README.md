@@ -1,6 +1,6 @@
 # Goldee — ราคาทองวันนี้
 
-Real-time Thai gold price tracker. Fetches live prices from สมาคมค้าทองคำ (YGTA), stores them every 5 minutes, and displays them on a clean consumer-facing website.
+Thai gold price tracker. Fetches live prices from สมาคมค้าทองคำ (YGTA) during the domestic **polling window** (default **09:00–18:30 Asia/Bangkok**, ~every 5 minutes in that window), and displays them on a consumer-facing site.
 
 ---
 
@@ -242,15 +242,15 @@ DATABASE_URL_UNPOOLED="<direct-url>" \
 npm run db:seed
 ```
 
-The scheduler job will populate real price data automatically within 5 minutes; seed only if you want articles and FAQ items to appear immediately.
+The scheduler job will populate real price data on the next run inside the polling window; seed only if you want articles and FAQ items to appear immediately.
 
-### Step 7 — Configure external scheduler (every 5 minutes)
+### Step 7 — Configure external scheduler (Thai session)
 
 Use **GitHub Actions** as the default scheduler for Vercel Hobby.
 
 This repo includes `.github/workflows/scheduler-fetch.yml` with:
-- `schedule`: every 5 minutes (`*/5 * * * *`)
-- `workflow_dispatch`: manual run support
+- `schedule`: every 5 minutes **only during UTC hours 02–11** (`*/5 2-11 * * *`), which maps to roughly **09:00–18:55 ICT** (UTC+7). The app still enforces the exact window (default **09:00–18:30**) on `POST /api/scheduler/ingest` and on `ingestGoldPrice()`; outside that time ingest returns `{ status: 'skipped', reason: 'outside_thai_polling_window' }`.
+- `workflow_dispatch`: manual run support (the workflow still POSTs to ingest; **outside the Thai window** the API returns `skipped` / `outside_thai_polling_window`. For a guaranteed fetch any time, use `/api/admin/run-fetch` or set `SKIP_FETCH_WINDOW=1` on the server.)
 - `GET` to `CHNWT_API_URL` (upstream source)
 - normalize payload into `source`, `asTime`, `seq`, prices, and `fetchedAt`
 - `POST` to `SCHEDULER_INGEST_URL` with `Authorization: Bearer ${CRON_SECRET}`
@@ -293,13 +293,14 @@ Reference mapper: `scripts/map-chnwt-to-ingest.js` and `lib/ingestion/providers/
 
 ---
 
-## Scheduler Setup (5-minute fetch)
+## Scheduler Setup (in-session polling)
 
-- `/api/scheduler/ingest` is the canonical endpoint for scheduler pushes
-- `/api/scheduler/fetch` remains available as a legacy pull-based endpoint
+- `/api/scheduler/ingest` is the canonical endpoint for scheduler pushes (skips outside Thai window in production unless `SKIP_FETCH_WINDOW=1` or `GOLD_PROVIDER=mock`)
+- `/api/scheduler/fetch` remains available as a legacy pull-based endpoint (same window rules as `ingestGoldPrice`)
 - `/api/cron/fetch-gold-price` remains supported as a legacy path
 - Auth uses: `Authorization: Bearer <CRON_SECRET>`
-- 5-minute schedule (`*/5 * * * *`) is fully compatible with this ingestion flow
+- GitHub Actions uses `*/5 2-11 * * *` UTC to approximate the ICT session; tune `THAI_FETCH_START_HHMM` / `THAI_FETCH_END_HHMM` in `.env` if needed
+- `/api/admin/run-fetch` **bypasses** the trading-hours gate for manual recovery
 - When a new snapshot is inserted, `/` and `/history` are revalidated immediately
 - For Vercel Hobby, use an external scheduler (GitHub Actions recommended)
 
@@ -328,7 +329,7 @@ Before inserting, the ingestion pipeline compares incoming prices against the mo
 - If all four prices match (and announcement numbers match when both are present) → no new row; `lastSeenAt` is updated on the existing row
 - If any price differs OR the announcement number changed → new row inserted
 
-YGTA announces prices roughly twice per trading day. During stable periods, most 5-minute cron runs produce zero new rows. The `fetchedAt → lastSeenAt` window on each row records exactly how long that price was valid.
+YGTA announces prices roughly twice per trading day. During stable periods, most in-session poll cycles produce zero new rows. The `fetchedAt → lastSeenAt` window on each row records exactly how long that price was valid.
 
 ### Retention policy (planned, not yet implemented)
 
@@ -375,12 +376,14 @@ Add your image CDN to `next.config.ts`:
 remotePatterns: [{ protocol: 'https', hostname: 'your-cdn.com' }]
 ```
 
-**Scheduler not running every 5 minutes**
-- Confirm external scheduler frequency is `*/5 * * * *`
-- Confirm `CHNWT_API_URL` and `SCHEDULER_INGEST_URL` GitHub secrets are set correctly
-- Confirm ingest URL is `https://your-domain.com/api/scheduler/ingest`
-- Confirm header is `Authorization: Bearer <CRON_SECRET>` for ingest requests
-- `CRON_SECRET` must match Vercel environment variables
+**Scheduler / ingest returns `outside_thai_polling_window`**
+- Expected outside **09:00–18:30 ICT** (defaults). Use `/api/admin/run-fetch` to bypass, or set `SKIP_FETCH_WINDOW=1` on Vercel for staging.
+- Confirm GitHub cron is `*/5 2-11 * * *` (UTC) so scheduled runs align with Thai hours.
+- Confirm `CHNWT_API_URL` and `SCHEDULER_INGEST_URL` secrets; ingest URL `https://your-domain.com/api/scheduler/ingest` with `Authorization: Bearer <CRON_SECRET>`.
+
+**Scheduler not firing in session**
+- GitHub Actions can delay scheduled jobs by a few minutes; check the Actions tab for failed runs.
+- `CRON_SECRET` must match Vercel environment variables.
 
 **Chart shows old data after price update**
 Scheduler insertions now trigger immediate revalidation for `/` and `/history`. The history API route also uses a shorter edge cache (`s-maxage=60`). If data still looks stale, hard-refresh once.

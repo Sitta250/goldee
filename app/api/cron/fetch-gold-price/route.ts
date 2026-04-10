@@ -42,8 +42,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (result.status === 'skipped') {
+    const kind = result.isDuplicate ? 'duplicate' : 'skipped'
     console.info(
-      `[cron/fetch-gold-price] skipped (duplicate) after ${durationMs}ms — ${result.reason}`,
+      `[cron/fetch-gold-price] ${kind} after ${durationMs}ms — ${result.reason}`,
     )
     return NextResponse.json({
       ok:        true,

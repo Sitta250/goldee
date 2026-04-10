@@ -27,7 +27,7 @@ function NoPriceState() {
       <p className="text-3xl select-none">⏳</p>
       <p className="text-base font-semibold text-gray-700">ยังไม่มีข้อมูลราคาทอง</p>
       <p className="text-sm text-gray-400">
-        ราคาจะพร้อมใช้งานหลังจากระบบดึงข้อมูลครั้งแรก (ทุก 5 นาที)
+        ราคาจะพร้อมใช้งานหลังจากระบบดึงข้อมูลครั้งแรกในช่วงประกาศ (ประมาณ 09:00–18:30 น. ไทย)
       </p>
     </div>
   )

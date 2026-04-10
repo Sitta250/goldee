@@ -2,14 +2,15 @@
 //
 // Timestamp semantics (important for UI honesty):
 //
-//   fetchedAt   — when Goldee's cron job stored this row.  This is the "system
-//                 received" time and is always present.  The cron runs every 5
-//                 minutes, so this tells you how old the cached data in the app
-//                 is, NOT when the price actually changed.
+//   fetchedAt   — when Goldee stored this row (first insert time).  Scheduled
+//                 polling runs only during the Thai market window (default
+//                 09:00–18:30 Asia/Bangkok), roughly every 5 minutes in that window.
+//                 This is "when the app received" the row, not when the source
+//                 changed the price.
 //
-//   lastSeenAt  — updated (without inserting a new row) every time the cron
-//                 runs and finds the exact same price as the previous snapshot.
-//                 Tells you the price has been stable from fetchedAt → lastSeenAt.
+//   lastSeenAt  — updated (without inserting a new row) on each successful poll
+//                 that still sees the same price as the latest snapshot.
+//                 Shows how recently the system re-confirmed that price.
 //
 //   capturedAt  — when the upstream source (e.g. YGTA / สมาคมค้าทองคำ) officially
 //                 published or announced this price.  Null when the source does
@@ -19,8 +20,7 @@
 // UI contract:
 //   Show capturedAt (labelled "เวลาประกาศ") when available.
 //   Show fetchedAt  (labelled "รับข้อมูล")  always, as freshness indicator.
-//   Never claim the price "updates every 5 minutes" — we CHECK every 5 minutes,
-//   but YGTA typically announces 1–2 times per day.
+//   We poll only in session; YGTA typically announces ~09:00 and ~18:00 ICT.
 
 export interface GoldPriceSnapshot {
   id:                 string

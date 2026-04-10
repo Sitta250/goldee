@@ -21,8 +21,8 @@ export const UI = {
     faqEmpty:         { th: 'ยังไม่มีคำถาม-คำตอบในขณะนี้', en: 'No FAQ items yet.'           },
     noPrice:          { th: 'ยังไม่มีข้อมูลราคาทอง',     en: 'No gold price data yet'        },
     noPriceDetail:    {
-      th: 'ระบบกำลังเริ่มต้น — ราคาจะปรากฏโดยอัตโนมัติหลังการดึงข้อมูลครั้งแรก (ทุก 5 นาทีในวันทำการ)',
-      en: 'System initialising — prices appear automatically after the first data fetch (every 5 min on trading days).',
+      th: 'ระบบกำลังเริ่มต้น — ราคาจะปรากฏหลังการดึงข้อมูลครั้งแรกในช่วงประกาศ (ประมาณ 09:00–18:30 น. ไทย)',
+      en: 'System initialising — prices appear after the first fetch during the Thai polling window (~09:00–18:30 ICT).',
     },
   },
   dailySummary: {

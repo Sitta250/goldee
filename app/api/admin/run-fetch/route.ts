@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   // ── Run ingestion ────────────────────────────────────────────────────────────
   console.info('[admin/run-fetch] Manual ingestion triggered')
-  const result     = await ingestGoldPrice()
+  const result     = await ingestGoldPrice({ adminBypassTradingHours: true })
   const durationMs = Date.now() - start
 
   // ── Response ─────────────────────────────────────────────────────────────────

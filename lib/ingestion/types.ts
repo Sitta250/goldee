@@ -43,5 +43,6 @@ export interface GoldPriceProvider {
  */
 export type IngestionResult =
   | { status: 'inserted'; snapshotId: string; barSell: number; isDuplicate: false }
-  | { status: 'skipped';  reason: string;                      isDuplicate: true  }
+  /** isDuplicate true = identical to latest snapshot; false = e.g. outside polling window */
+  | { status: 'skipped';  reason: string;                      isDuplicate: boolean }
   | { status: 'error';    error: string;                       isDuplicate: false }

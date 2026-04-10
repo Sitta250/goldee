@@ -12,6 +12,7 @@ import { getLatestAnalysis }   from '@/lib/queries/analysis'
 import { validateAnalysisForSnapshot } from '@/lib/queries/homepage'
 import { calculateChange }     from '@/lib/utils/trend'
 import { buildMetadata }       from '@/lib/utils/metadata'
+import { isThaiGoldPollingWindow } from '@/lib/utils/thai-market-hours'
 import type { GoldPriceSnapshot, LatestPriceData } from '@/types/gold'
 
 import { Container }             from '@/components/layout/Container'
@@ -34,11 +35,12 @@ import { AnalysisUnavailableCard } from '@/components/home/AnalysisUnavailableCa
 
 export const metadata: Metadata = buildMetadata({
   title:       'ราคาทองวันนี้ — ทองคำแท่งและทองรูปพรรณ',
-  description: 'ราคาทองคำวันนี้ล่าสุด ทองคำแท่ง 96.5% และทองรูปพรรณ ตรวจสอบราคาทุก 5 นาที พร้อมกราฟแนวโน้มและเครื่องคิดเลขทอง',
+  description:
+    'ราคาทองคำวันนี้ล่าสุด ทองคำแท่ง 96.5% และทองรูปพรรณ ตรวจสอบราคาในช่วงประกาศ (ประมาณ 09:00–18:30 น. ไทย) พร้อมกราฟและเครื่องคิดเลขทอง',
   canonical:   '/',
 })
 
-// Revalidate every 5 minutes — matches the cron ingestion interval
+// Revalidate every 5 minutes — aligns with in-session polling cadence (not 24/7)
 export const revalidate = 300
 
 // ─── AI rationale teaser ──────────────────────────────────────────────────────
@@ -149,6 +151,8 @@ export default async function HomePage() {
     ? calculateChange(latest, yesterdaySnap)
     : null
 
+  const isWithinPollingWindow = isThaiGoldPollingWindow()
+
   return (
     <div className="pt-4 pb-6 sm:py-8">
       <Container>
@@ -157,8 +161,13 @@ export default async function HomePage() {
           {/* ── Main column ───────────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-5">
 
-            {/* 1a. Stale data warning — shown when cron hasn't confirmed price in 15+ min */}
-            {latest && <DataStaleBanner lastSeenAt={latest.lastSeenAt} />}
+            {/* 1a. Stale / session banner — market-hours aware */}
+            {latest && (
+              <DataStaleBanner
+                lastSeenAt={latest.lastSeenAt}
+                isWithinPollingWindow={isWithinPollingWindow}
+              />
+            )}
 
             {/* 1b. Hero — buy/sell cards, vs-previous + vs-yesterday deltas, timestamps */}
             {latestPrice ? (

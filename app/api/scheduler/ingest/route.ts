@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { ingestNormalizedPayload, type NormalizedIngestPayload } from '@/lib/ingestion/ingest-normalized'
 import { isAuthorizedCronRequest } from '@/lib/security/cron-auth'
+import {
+  isThaiGoldPollingWindow,
+  shouldBypassThaiFetchWindow,
+} from '@/lib/utils/thai-market-hours'
 
 function parsePayload(body: unknown): NormalizedIngestPayload {
   if (typeof body !== 'object' || body === null) {
@@ -48,6 +52,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (!shouldBypassThaiFetchWindow() && !isThaiGoldPollingWindow()) {
+      const durationMs = Date.now() - start
+      console.info('[scheduler/ingest] skipped — outside Thai polling window')
+      return NextResponse.json({
+        ok:        true,
+        status:    'skipped',
+        reason:    'outside_thai_polling_window',
+        timestamp: new Date().toISOString(),
+        durationMs,
+      })
+    }
+
     const raw = await req.json()
     const payload = parsePayload(raw)
     const result = await ingestNormalizedPayload(payload)

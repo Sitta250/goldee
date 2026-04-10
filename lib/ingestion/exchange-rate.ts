@@ -9,9 +9,9 @@
  *   we check the most recent snapshot. If it was fetched less than 1 hour ago
  *   AND has a usdThb value, we reuse it — zero extra API calls.
  *
- *   At 5-min cron frequency, the external API is called at most once per hour
- *   (~720 requests/month). The rate is then stored with the new snapshot and
- *   reused by subsequent cron runs until it goes stale.
+ *   During in-session polling (~every 5 min in the Thai window), the external
+ *   API is called at most about once per hour while snapshots arrive. The rate
+ *   is stored with new snapshots and reused until stale.
  */
 
 import { db } from '@/lib/db'

@@ -1,8 +1,10 @@
 name: Scheduler Fetch
 
+# ICT = UTC+7. Window 09:00–18:30 Bangkok ≈ 02:00–11:30 UTC (inclusive 5-min slots).
+# Hours 2–11 UTC = 09:00 ICT through 18:55 ICT; last slot 11:55 UTC = 18:55 ICT (buffer after ~18:00 close).
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/5 2-11 * * *"
   workflow_dispatch:
 
 jobs:
