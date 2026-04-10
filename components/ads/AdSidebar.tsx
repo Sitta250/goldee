@@ -1,10 +1,12 @@
 // Ad slot: Desktop Sidebar / Wide Skyscraper
 // Location: right rail on desktop layouts (lg+). Hidden on mobile.
 // Typical size: 160×600 (wide skyscraper) or 300×600 (half-page).
-// TODO: Replace inner content with your ad network's script tag.
+// To enable: set NEXT_PUBLIC_ADS_ENABLED=true and replace inner content with your ad network's script tag.
 // Usage: wrap page content in a two-column grid and place <AdSidebar /> in the right column.
 
 export function AdSidebar() {
+  if (process.env.NEXT_PUBLIC_ADS_ENABLED !== 'true') return null
+
   return (
     <aside
       aria-hidden="true"

@@ -157,7 +157,7 @@ export function GoldCalculator({ goldBarBuy, goldBarSell, initialTxType }: GoldC
       {/* ── 3. Transaction type ───────────────────────────────────────────────── */}
       <fieldset>
         <legend className="text-sm font-semibold text-gray-800 mb-3">
-          คุณต้องการ
+          ซื้อ หรือ ขายทอง?
         </legend>
         <div className="grid grid-cols-2 gap-2">
           <button

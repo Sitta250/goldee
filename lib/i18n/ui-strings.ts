@@ -8,8 +8,8 @@ export type Lang = 'th' | 'en'
 export const UI = {
   nav: {
     home:       { th: 'หน้าแรก',    en: 'Home'        },
-    history:    { th: 'ประวัติราคา', en: 'Price History'},
-    calculator: { th: 'คำนวณทอง',   en: 'Calculator'  },
+    history:    { th: 'ประวัติราคาทอง', en: 'Price History'},
+    calculator: { th: 'คำนวณราคาทอง', en: 'Calculator'  },
     articles:   { th: 'บทความ',      en: 'Articles'    },
     about:      { th: 'เกี่ยวกับ',   en: 'About'       },
   },
@@ -26,7 +26,7 @@ export const UI = {
     },
   },
   dailySummary: {
-    heading: { th: 'สรุปราคาทองวันนี้', en: "Today's Gold Summary" },
+    heading: { th: 'สรุปความเคลื่อนไหวราคาทองวันนี้', en: "Today's Gold Price Movement" },
     open:    { th: 'เปิด',             en: 'Open'                  },
     close:   { th: 'ปิด',              en: 'Close'                 },
     high:    { th: 'สูงสุด',           en: 'High'                  },

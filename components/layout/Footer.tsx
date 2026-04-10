@@ -20,7 +20,16 @@ export function Footer() {
           <div className="space-y-1">
             <p className="font-semibold text-gray-900 tracking-tight">Goldee</p>
             <p className="text-sm text-gray-400">
-              ราคาทองคำวันนี้ ตรวจสอบราคาทุก 5 นาที
+              อ้างอิงราคาจาก{' '}
+              <a
+                href="https://www.goldtraders.or.th"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-gray-600 transition-colors"
+              >
+                สมาคมค้าทองคำ
+              </a>
+              {' '}· ดึงข้อมูลทุก 5 นาที
             </p>
           </div>
 

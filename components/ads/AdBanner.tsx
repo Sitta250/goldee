@@ -1,9 +1,11 @@
 // Ad slot: Top Banner
 // Location: below the site header, across the full width on all pages.
 // Typical size: 728×90 (leaderboard) on desktop, 320×50 (mobile banner) on mobile.
-// TODO: Replace inner content with your ad network's script tag (e.g. Google AdSense).
+// To enable: set NEXT_PUBLIC_ADS_ENABLED=true and replace inner content with your ad network's script tag.
 
 export function AdBanner() {
+  if (process.env.NEXT_PUBLIC_ADS_ENABLED !== 'true') return null
+
   return (
     <div
       aria-hidden="true"

@@ -1,9 +1,11 @@
 // Ad slot: Pre-footer Band
 // Location: immediately above the site footer, full width.
 // Typical size: 728×90 (leaderboard) or a full-width responsive unit.
-// TODO: Replace inner content with your ad network's script tag.
+// To enable: set NEXT_PUBLIC_ADS_ENABLED=true and replace inner content with your ad network's script tag.
 
 export function AdFooter() {
+  if (process.env.NEXT_PUBLIC_ADS_ENABLED !== 'true') return null
+
   return (
     <div
       aria-hidden="true"

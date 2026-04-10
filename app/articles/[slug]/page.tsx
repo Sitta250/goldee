@@ -117,9 +117,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         </article>
 
         {/* ── In-article ad slot ────────────────────────────────────────────── */}
-        <div className="my-10">
-          <AdRectangle />
-        </div>
+        <AdRectangle />
 
         {/* ── Related articles ──────────────────────────────────────────────── */}
         {relatedArticles.length > 0 && (

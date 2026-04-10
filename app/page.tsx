@@ -23,10 +23,12 @@ import { ArticlesSectionHeader } from '@/components/home/ArticlesSectionHeader'
 import { FaqSection }            from '@/components/home/FaqSection'
 import { CalculatorPreview }     from '@/components/calculator/CalculatorPreview'
 import { ArticleGrid }           from '@/components/articles/ArticleGrid'
-import { AdSidebar }             from '@/components/ads/AdSidebar'
-import { Divider }               from '@/components/ui/Divider'
-import { BelowFoldSkeleton }     from '@/components/ui/LoadingSkeleton'
+import { AdSidebar }               from '@/components/ads/AdSidebar'
+import { Divider }                 from '@/components/ui/Divider'
+import { BelowFoldSkeleton }       from '@/components/ui/LoadingSkeleton'
 import { TradingViewChartClient as TradingViewChart } from '@/components/chart/TradingViewChartClient'
+import { DataStaleBanner }         from '@/components/home/DataStaleBanner'
+import { AnalysisUnavailableCard } from '@/components/home/AnalysisUnavailableCard'
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -84,19 +86,12 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
 
   return (
     <>
-      {/* Plain-language daily summary (skipped if not yet generated) */}
-      {summary && (
-        <DailySummaryCard
-          summaryTh={summary.summaryTh}
-          highBarSell={summary.highBarSell}
-          lowBarSell={summary.lowBarSell}
-          openBarSell={summary.openBarSell}
-          closeBarSell={summary.closeBarSell}
-        />
+      {/* AI gold analysis — rendered from cached DB record; unavailable card when suppressed */}
+      {analysis ? (
+        <GoldAnalysisCard analysis={analysis} />
+      ) : (
+        <AnalysisUnavailableCard />
       )}
-
-      {/* AI gold analysis — rendered from cached DB record */}
-      {analysis && <GoldAnalysisCard analysis={analysis} />}
 
       <Divider />
 
@@ -107,6 +102,20 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
       </section>
 
       <Divider />
+
+      {/* Plain-language daily summary — OHLC + narrative, shown after articles as supporting context */}
+      {summary && (
+        <>
+          <DailySummaryCard
+            summaryTh={summary.summaryTh}
+            highBarSell={summary.highBarSell}
+            lowBarSell={summary.lowBarSell}
+            openBarSell={summary.openBarSell}
+            closeBarSell={summary.closeBarSell}
+          />
+          <Divider />
+        </>
+      )}
 
       {/* FAQ — loaded from DB, falls back to empty state */}
       <FaqSection items={faqItems} />
@@ -141,14 +150,17 @@ export default async function HomePage() {
     : null
 
   return (
-    <div className="py-6 sm:py-8">
+    <div className="pt-4 pb-6 sm:py-8">
       <Container>
         <div className="flex gap-8 items-start">
 
           {/* ── Main column ───────────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-5">
 
-            {/* 1. Hero — buy/sell cards, vs-previous + vs-yesterday deltas, timestamps */}
+            {/* 1a. Stale data warning — shown when cron hasn't confirmed price in 15+ min */}
+            {latest && <DataStaleBanner lastSeenAt={latest.lastSeenAt} />}
+
+            {/* 1b. Hero — buy/sell cards, vs-previous + vs-yesterday deltas, timestamps */}
             {latestPrice ? (
               <PriceHero data={latestPrice} changeFromYesterday={changeFromYesterday} />
             ) : (
@@ -173,9 +185,11 @@ export default async function HomePage() {
             <TradingViewChart />
 
             {/* 5. Below-fold: daily summary, full AI analysis, articles, FAQ */}
+            <div className="pt-4">
             <Suspense fallback={<BelowFoldSkeleton />}>
               <BelowFold latestPrice={latestPrice} />
             </Suspense>
+            </div>
 
           </div>
 

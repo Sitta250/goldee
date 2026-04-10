@@ -11,8 +11,10 @@
  */
 
 import { useLanguage } from '@/contexts/LanguageContext'
+import { DELTA_LABELS } from '@/lib/utils/copy'
 import type {
   Bias,
+  GoldAnalysisPayload,
   GoldAnalysisRecord,
   SuitableFor,
   TrendDirection,
@@ -74,6 +76,24 @@ const CONFIDENCE_DOT: Record<string, string> = {
   low:    'bg-gray-300',
 }
 
+/**
+ * Derive overall input confidence from what the LLM echoed back.
+ * This is deterministic — no extra DB field needed.
+ * - 'low'    → all drivers low confidence AND expert consensus low
+ * - 'medium' → mixed signals
+ * - 'high'   → at least one high-confidence driver or strong expert consensus
+ */
+function deriveInputConfidence(payload: GoldAnalysisPayload): 'high' | 'medium' | 'low' {
+  const allDriversLow = payload.market_drivers.every((d) => d.confidence === 'low')
+  const expertLow     = payload.expert_view.consensus_strength === 'low'
+  if (allDriversLow && expertLow) return 'low'
+
+  const anyHigh =
+    payload.market_drivers.some((d) => d.confidence === 'high') ||
+    payload.expert_view.consensus_strength === 'high'
+  return anyHigh ? 'high' : 'medium'
+}
+
 function formatDate(d: Date, lang: 'th' | 'en'): string {
   return new Intl.DateTimeFormat(lang === 'th' ? 'th-TH' : 'en-US', {
     dateStyle: 'medium',
@@ -102,6 +122,7 @@ interface GoldAnalysisCardProps {
 export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
   const { lang, t } = useLanguage()
   const { payload, generatedAt, isValid } = analysis
+  const inputConfidence = deriveInputConfidence(payload)
   const { price_analysis: pa, market_drivers, expert_view, disclaimer } = payload
   const signals   = payload.price_signals
   const watchList = payload.watch_list
@@ -112,7 +133,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
   const pctChg   = pa.vs_yesterday.percent_change
   const sign     = absChg >= 0 ? '+' : ''
 
-  const labelUpdated      = lang === 'th' ? 'สร้างเมื่อ'         : 'Generated'
+  const labelUpdated      = lang === 'th' ? 'วิเคราะห์เมื่อ'      : 'Analysed'
   const labelAiDisclaimer = lang === 'th'
     ? 'สรุปโดย AI จากข้อมูลตลาดและแหล่งข่าว ไม่ใช่คำแนะนำการลงทุน'
     : 'AI summary from market data and news sources. Not investment advice.'
@@ -127,7 +148,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
         <div className="flex items-start justify-between gap-3">
           <h2
             id="gold-analysis-heading"
-            className="text-base font-semibold text-gray-900 leading-snug"
+            className="text-sm font-semibold text-gray-700 leading-snug"
           >
             {t(pa.headline)}
           </h2>
@@ -167,7 +188,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
           </span>
           {/* 7-day context */}
           <span className="text-xs text-gray-400">
-            {lang === 'th' ? '7 วัน: ' : '7d: '}
+            {DELTA_LABELS.vs7d[lang]}{': '}
             <span className={pa.vs_7d.direction === 'up' ? 'text-green-600' : pa.vs_7d.direction === 'down' ? 'text-red-500' : 'text-gray-500'}>
               {pa.vs_7d.absolute_change >= 0 ? '+' : ''}{pa.vs_7d.absolute_change.toFixed(0)}
             </span>
@@ -179,7 +200,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
       {/* ── Section 2: เหตุผลหลัก ───────────────────────────────────────────── */}
       <div className="px-5 py-4 border-b border-gray-50">
         <SectionHeading>
-          {lang === 'th' ? 'เหตุผลหลัก' : 'Main Reasons'}
+          {lang === 'th' ? 'ปัจจัยที่ส่งผลต่อราคา' : 'Price Drivers'}
         </SectionHeading>
         <ul className="space-y-2.5">
           {market_drivers.map((driver, i) => (
@@ -198,7 +219,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
       {watchList && watchList.length > 0 && (
         <div className="px-5 py-4 border-b border-gray-50">
           <SectionHeading>
-            {lang === 'th' ? 'สิ่งที่ต้องจับตา' : 'Things to Watch'}
+            {lang === 'th' ? 'ปัจจัยที่ต้องติดตาม' : 'Factors to Watch'}
           </SectionHeading>
           <ul className="space-y-1.5">
             {watchList.map((item, i) => (
@@ -214,7 +235,7 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
       {/* ── Section 4: มุมมองวันนี้ ─────────────────────────────────────────── */}
       <div className="px-5 py-4 border-b border-gray-50">
         <SectionHeading>
-          {lang === 'th' ? 'มุมมองวันนี้' : "Today's View"}
+          {lang === 'th' ? 'วิเคราะห์วันนี้' : "Today's Analysis"}
         </SectionHeading>
         {todayView ? (
           <>
@@ -243,6 +264,13 @@ export function GoldAnalysisCard({ analysis }: GoldAnalysisCardProps) {
             {lang === 'th'
               ? '⚠ ข้อมูลอาจไม่ครบถ้วน — แสดงสรุปพื้นฐาน'
               : '⚠ Detailed analysis unavailable — showing basic summary'}
+          </p>
+        )}
+        {isValid && inputConfidence === 'low' && (
+          <p className="text-[11px] text-amber-600 mb-1">
+            {lang === 'th'
+              ? '⚠ ข้อมูลประกอบจำกัด — ใช้ดุลยพินิจในการตัดสินใจ'
+              : '⚠ Limited supporting data — use your own judgement'}
           </p>
         )}
         <p className="text-[11px] text-gray-400">

@@ -3,10 +3,11 @@
 import type { PriceChange } from '@/types/gold'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatPercent } from '@/lib/utils/format'
+import { DELTA_LABELS } from '@/lib/utils/copy'
 
 interface PriceChangeProps {
   change: PriceChange
-  /** Contextual label shown after the numbers. Defaults to "เทียบก่อนหน้า". */
+  /** Baseline label shown after the numbers — should always be explicit. */
   label?: string
   className?: string
 }
@@ -29,7 +30,7 @@ export function PriceChangeDisplay({ change, label, className = '' }: PriceChang
     <div className={`flex items-center gap-2 ${className}`}>
       {/* Arrow + amount */}
       <span
-        className={`flex items-center gap-1 text-base font-semibold tabular-nums ${
+        className={`flex items-center gap-1 text-lg font-bold tabular-nums ${
           isUp ? 'text-green-600' : 'text-red-600'
         }`}
         aria-label={`${isUp ? 'ขึ้น' : 'ลง'} ${symbol}${format(amount)}`}
@@ -49,7 +50,7 @@ export function PriceChangeDisplay({ change, label, className = '' }: PriceChang
         {formatPercent(percent)}
       </span>
 
-      <span className="text-xs text-gray-400">{label ?? 'เทียบก่อนหน้า'}</span>
+      <span className="text-xs text-gray-400">{label ?? DELTA_LABELS.vsPrevious.th}</span>
     </div>
   )
 }

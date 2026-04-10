@@ -31,10 +31,15 @@ export function LastUpdated({
     <p className={`text-xs text-gray-400 ${className}`}>
       {captured ? (
         <>
+          {/* Source name — visible inline */}
+          {sourceName && (
+            <>
+              <span className="text-gray-300">{sourceName}</span>
+              {' '}·{' '}
+            </>
+          )}
           {/* Source announcement time — the most meaningful "price as-of" */}
-          <span
-            title={`เวลาประกาศจาก${sourceName ?? 'แหล่งที่มา'}: ${formatDateTime(captured)}`}
-          >
+          <span title={`เวลาประกาศ: ${formatDateTime(captured)}`}>
             เวลาประกาศ{' '}
             <time dateTime={captured.toISOString()} className="font-medium text-gray-500">
               {formatTime(captured)}

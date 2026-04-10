@@ -59,7 +59,7 @@ export function ArticleCardSkeleton() {
 export function BelowFoldSkeleton() {
   return (
     <div className="space-y-8" aria-hidden="true">
-      {/* summary + analysis cards */}
+      {/* analysis card */}
       <div className="rounded-card bg-white border border-gray-100 p-4 shadow-card space-y-3">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-16 w-full" />

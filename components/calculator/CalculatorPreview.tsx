@@ -22,11 +22,11 @@ export function CalculatorPreview({ goldBarSell }: CalculatorPreviewProps) {
   const result = calculateGoldValue(weightNum, 96.5, goldBarSell)
 
   return (
-    <div className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4">
+    <div className="rounded-card bg-white border border-gray-100 shadow-card p-4 sm:p-5 space-y-3 sm:space-y-4">
 
       {/* Header */}
       <div>
-        <h2 className="text-lg font-bold text-gray-900">คำนวณมูลค่าทองด่วน</h2>
+        <h2 className="text-lg font-bold text-gray-900">คำนวณมูลค่าทองคำ</h2>
         <p className="text-xs text-gray-400 mt-0.5">
           ทองคำแท่ง 96.5% · ราคาขาย{' '}
           <span className="font-medium tabular-nums text-gray-600">
@@ -88,7 +88,7 @@ export function CalculatorPreview({ goldBarSell }: CalculatorPreviewProps) {
         href="/calculator"
         className="block text-center rounded-lg bg-gold-500 hover:bg-gold-600 text-white text-sm font-semibold py-3 transition-colors"
       >
-        คำนวณแบบละเอียด — เลือกประเภท ความบริสุทธิ์ และหน่วย →
+        คำนวณมูลค่าทองแบบละเอียด — เลือกประเภท น้ำหนัก และความบริสุทธิ์ →
       </Link>
 
     </div>

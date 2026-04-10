@@ -34,7 +34,7 @@ export function DailySummaryCard({
       aria-labelledby="daily-summary-heading"
       className="rounded-card bg-white border border-gray-100 shadow-card p-5 space-y-4"
     >
-      <h2 id="daily-summary-heading" className="text-base font-semibold text-gray-900">
+      <h2 id="daily-summary-heading" className="text-sm font-semibold text-gray-600">
         {s(UI.dailySummary.heading, lang)}
       </h2>
 

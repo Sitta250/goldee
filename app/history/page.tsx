@@ -79,7 +79,7 @@ export default async function HistoryPage({
 
             {/* ── 1. Page heading ──────────────────────────────────────────── */}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทอง</h1>
+              <h1 className="text-2xl font-bold text-gray-900">ประวัติราคาทองคำ</h1>
               <p className="text-sm text-gray-500 mt-1">
                 ราคาทองคำแท่ง 96.5% และทองรูปพรรณ อ้างอิงจากสมาคมค้าทองคำแห่งประเทศไทย
               </p>
@@ -95,7 +95,7 @@ export default async function HistoryPage({
                   id="stats-section-heading"
                   className="text-sm font-semibold text-gray-700"
                 >
-                  สถิติราคาตามช่วงเวลา
+                  สถิติราคาทองคำแท่ง
                 </h2>
                 <HistoryTimeframeNav active={range} />
               </div>

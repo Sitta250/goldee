@@ -8,6 +8,7 @@
  * returned — callers must not fetch a parallel analysis independently.
  */
 
+import { cache } from 'react'
 import { getLatestSnapshot, getPreviousSnapshot, getLatestSummary } from './prices'
 import { getLatestArticles }   from './articles'
 import { getPublishedFaqItems } from './faq'
@@ -39,16 +40,21 @@ const ANALYSIS_HARD_STALE_MS     = 24 * 60 * 60 * 1000  // 24 h → suppress car
  * Validate that the analysis was based on a price snapshot reasonably close
  * to the snapshot the hero is currently showing.
  *
+ * - Returns null when there is no analysis or no snapshot (cannot show AI without a price).
  * - Returns the analysis unchanged when within acceptable bounds.
  * - Logs a server-side warning when the gap exceeds 12 h (missed cron run).
  * - Returns null when the gap exceeds 24 h so the stale AI card is not shown
  *   alongside a live price that disagrees with the analysis baseline.
+ *
+ * Wrapped in React `cache()` so multiple callers in the same request (teaser + below-fold)
+ * share one result and one warning log.
  */
-export function validateAnalysisForSnapshot(
+export const validateAnalysisForSnapshot = cache(function validateAnalysisForSnapshot(
   snapshot: GoldPriceSnapshot | null,
   analysis: GoldAnalysisRecord | null,
 ): GoldAnalysisRecord | null {
-  if (!analysis || !snapshot) return analysis
+  if (!analysis) return null
+  if (!snapshot) return null
 
   const gapMs = Math.abs(
     snapshot.fetchedAt.getTime() - analysis.basedOnPriceTimestamp.getTime(),
@@ -74,7 +80,7 @@ export function validateAnalysisForSnapshot(
   }
 
   return analysis
-}
+})
 
 export async function getHomepageData(): Promise<HomepageData> {
   const [latest, previous, summary, articles, faqItems, rawAnalysis] = await Promise.all([

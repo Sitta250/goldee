@@ -18,7 +18,7 @@ export function PriceCard({ label, sublabel, value, type }: PriceCardProps) {
       {/* Top accent line */}
       <div className={`h-0.5 w-full ${isBuy ? 'bg-gold-400' : 'bg-gray-200'}`} />
 
-      <div className="p-4 flex flex-col gap-3">
+      <div className="p-3 sm:p-4 flex flex-col gap-2 sm:gap-3">
         {/* Label + type badge */}
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -36,7 +36,7 @@ export function PriceCard({ label, sublabel, value, type }: PriceCardProps) {
 
         {/* Price */}
         <p
-          className="text-price-md font-bold text-gray-900 leading-none tabular-nums"
+          className="text-price-md sm:text-price-lg font-bold text-gray-900 leading-none tabular-nums"
           aria-label={`${label} ${symbol}${format(value)} ${isUsd ? 'USD' : 'บาท'}`}
         >
           <span className="text-sm font-normal text-gray-400 mr-0.5">{symbol}</span>

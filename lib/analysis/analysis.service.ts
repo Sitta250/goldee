@@ -111,6 +111,10 @@ export async function runGoldAnalysis(
     if (check1.ok) {
       payload = result1.parsed
     } else {
+      console.warn(
+        `[goldee/analysis] Validation attempt 1 failed (${check1.errors.length} error(s)): ` +
+        check1.errors.slice(0, 5).join('; '),
+      )
       // Retry with stricter prompt
       const result2 = await summarizeWithGemini(bundle, true, runWindow)
       modelNameForDb = result2.modelName
@@ -119,6 +123,10 @@ export async function runGoldAnalysis(
       if (check2.ok) {
         payload = result2.parsed
       } else {
+        console.error(
+          `[goldee/analysis] Both validation attempts failed — using fallback payload. ` +
+          `Final errors (${check2.errors.length}): ${check2.errors.join('; ')}`,
+        )
         // Both attempts failed — use safe fallback
         payload        = buildFallbackPayload(priceFacts)
         isValid        = false
@@ -127,9 +135,11 @@ export async function runGoldAnalysis(
     }
   } catch (err) {
     // Gemini API error — persist safe fallback so homepage always has data
+    const errMsg = err instanceof Error ? err.message : String(err)
+    console.error(`[goldee/analysis] Gemini API error — using fallback payload: ${errMsg}`)
     payload        = buildFallbackPayload(priceFacts)
     isValid        = false
-    validationError = err instanceof Error ? err.message : String(err)
+    validationError = errMsg
   }
 
   // 7. Persist
