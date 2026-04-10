@@ -1,0 +1,32 @@
+name: Analysis daily health
+
+# Runs just after midnight ICT — verifies the Bangkok calendar day that just ended
+# had at least two gold_analysis rows (morning + evening windows).
+on:
+  schedule:
+    - cron: "5 17 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-yesterday:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Check analysis count for previous ICT day
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run check:analysis-day

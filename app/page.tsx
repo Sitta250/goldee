@@ -43,7 +43,8 @@ export const metadata: Metadata = buildMetadata({
 // Revalidate every 5 minutes — aligns with in-session polling cadence (not 24/7)
 export const revalidate = 300
 
-// ─── AI rationale teaser ──────────────────────────────────────────────────────
+// ─── AI rationale teaser (Gemini / GoldAnalysis table) ────────────────────────
+// Not the same as DailySummaryCard below — that uses `dailySummary` (seed / separate data).
 // Rendered above the fold in its own Suspense so it doesn't block the hero.
 // Shows the analysis headline only — one line that answers "why is gold moving?".
 // getLatestAnalysis() is React-cached so this shares the DB hit with BelowFold.
@@ -88,7 +89,7 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
 
   return (
     <>
-      {/* AI gold analysis — rendered from cached DB record; unavailable card when suppressed */}
+      {/* Gemini briefing — `GoldAnalysis` rows with isValid=true, fresh vs snapshot (see homepage query) */}
       {analysis ? (
         <GoldAnalysisCard analysis={analysis} />
       ) : (
@@ -105,7 +106,7 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
 
       <Divider />
 
-      {/* Plain-language daily summary — OHLC + narrative, shown after articles as supporting context */}
+      {/* Daily narrative + OHLC — `dailySummary` table; not produced by the Gemini analysis job */}
       {summary && (
         <>
           <DailySummaryCard

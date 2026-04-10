@@ -192,6 +192,7 @@ model GoldAnalysis {
   // Populated when isValid = false
   validationError       String?  @map("validation_error")
 
+  @@unique([runWindow, inputHash], map: "gold_analysis_run_window_input_hash_key")
   @@index([generatedAt(sort: Desc)])
   @@index([runWindow, generatedAt(sort: Desc)])
   @@map("gold_analysis")

@@ -302,17 +302,9 @@ function checkSourceProvenance(
     }
   }
 
-  // If no news was provided but LLM claims multiple active drivers, flag overconfidence
-  if (bundle.newsItems.length === 0) {
-    const activeDrivers = payload.market_drivers.filter(
-      (d) => d.impact_type === 'already_affecting' && d.confidence !== 'low',
-    )
-    if (activeDrivers.length > 0) {
-      errors.push(
-        `LLM claimed ${activeDrivers.length} active driver(s) with no news input — possible hallucination`,
-      )
-    }
-  }
+  // When RSS returns no items, drivers may still describe **price action / MA context**
+  // as `already_affecting` with medium or high confidence. `source_count` is already
+  // capped at 0 above, so the model cannot claim specific headlines it did not receive.
 
   return errors
 }

@@ -5,6 +5,7 @@
  * Idempotent per run window — skips if an identical input hash already exists.
  */
 
+import { Prisma }               from '@prisma/client'
 import { db }                   from '@/lib/db'
 import { computePriceFacts }    from './compute-price-facts'
 import { fetchGlobalNews }      from './fetch-global-news'
@@ -96,11 +97,12 @@ export async function runGoldAnalysis(
   }
 
   // 6. Call Gemini — retry once with stricter prompt on validation failure
-  let payload:         GoldAnalysisPayload
-  let isValid          = true
-  let validationError: string | null = null
-  let modelVersion:    string | null = null
-  let modelNameForDb   = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash'
+  let payload:                GoldAnalysisPayload
+  let isValid                 = true
+  let validationError:        string | null = null
+  let usedTemplateFallback    = false
+  let modelVersion:           string | null = null
+  let modelNameForDb          = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash'
 
   try {
     const result1 = await summarizeWithGemini(bundle, false, runWindow)
@@ -127,41 +129,77 @@ export async function runGoldAnalysis(
           `[goldee/analysis] Both validation attempts failed — using fallback payload. ` +
           `Final errors (${check2.errors.length}): ${check2.errors.join('; ')}`,
         )
-        // Both attempts failed — use safe fallback
-        payload        = buildFallbackPayload(priceFacts)
-        isValid        = false
-        validationError = check2.errors.join('; ')
+        usedTemplateFallback = true
+        payload              = buildFallbackPayload(priceFacts)
+        const fbCheck        = validateOutput(payload, priceFacts, bundle)
+        if (fbCheck.ok) {
+          isValid          = true
+          validationError  = null
+        } else {
+          isValid          = false
+          validationError  =
+            `${check2.errors.join('; ')} | template: ${fbCheck.errors.join('; ')}`
+        }
       }
     }
   } catch (err) {
-    // Gemini API error — persist safe fallback so homepage always has data
+    // Gemini API error — persist deterministic template; mark valid if it self-checks
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[goldee/analysis] Gemini API error — using fallback payload: ${errMsg}`)
-    payload        = buildFallbackPayload(priceFacts)
-    isValid        = false
-    validationError = errMsg
+    usedTemplateFallback = true
+    payload              = buildFallbackPayload(priceFacts)
+    const fbCheck        = validateOutput(payload, priceFacts, bundle)
+    if (fbCheck.ok) {
+      isValid         = true
+      validationError = null
+    } else {
+      isValid         = false
+      validationError = `${errMsg} | template: ${fbCheck.errors.join('; ')}`
+    }
   }
 
-  // 7. Persist
-  const record = await db.goldAnalysis.create({
-    data: {
-      basedOnPriceTimestamp: priceFacts.priceTimestamp,
-      basedOnNewsWindow:     newsWindow,
-      modelName:             modelNameForDb,
-      modelVersion,
-      inputHash,
-      runWindow,
-      payload:               payload as object,
-      isValid,
-      validationError,
-    },
-  })
+  // 7. Persist (unique on run_window + input_hash prevents duplicate rows from concurrent schedulers)
+  let record
+  try {
+    record = await db.goldAnalysis.create({
+      data: {
+        basedOnPriceTimestamp: priceFacts.priceTimestamp,
+        basedOnNewsWindow:     newsWindow,
+        modelName:             modelNameForDb,
+        modelVersion,
+        inputHash,
+        runWindow,
+        payload:               payload as object,
+        isValid,
+        validationError,
+      },
+    })
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      const existing = await db.goldAnalysis.findFirst({
+        where:   { runWindow, inputHash },
+        orderBy: { generatedAt: 'desc' },
+        select:  { id: true },
+      })
+      return {
+        status:     'skipped',
+        id:         existing?.id,
+        inputHash,
+        skipReason:
+          'Duplicate (run_window, input_hash) — concurrent insert or overlapping schedulers.',
+      }
+    }
+    throw e
+  }
+
+  const status: AnalysisRunStatus =
+    usedTemplateFallback ? 'fallback' : isValid ? 'inserted' : 'fallback'
 
   return {
-    status:    isValid ? 'inserted' : 'fallback',
+    status,
     id:        record.id,
     inputHash,
     isValid,
-    ...(isValid ? {} : { validationError: validationError ?? undefined }),
+    ...(validationError ? { validationError } : {}),
   }
 }

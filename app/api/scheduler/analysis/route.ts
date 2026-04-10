@@ -1,8 +1,8 @@
 /**
- * POST /api/scheduler/analysis
+ * GET /api/scheduler/analysis
  *
  * Cron-triggered endpoint for the Today Gold Analysis.
- * Runs twice daily: 09:30 and 18:00 UTC+7 (= 02:30 and 11:00 UTC).
+ * Primary: 09:30 and 18:00 ICT (02:30 and 11:00 UTC). Retries: +1h (see vercel.json).
  *
  * Auth: Authorization: Bearer <CRON_SECRET>
  */
@@ -33,12 +33,16 @@ export async function GET(req: NextRequest) {
       revalidatePath('/')
     }
 
-    return NextResponse.json({
-      ok: result.status !== 'error',
-      ...result,
-      timestamp:  new Date().toISOString(),
-      durationMs: Date.now() - startedAt,
-    })
+    const ok = result.status !== 'error'
+    return NextResponse.json(
+      {
+        ok,
+        ...result,
+        timestamp:  new Date().toISOString(),
+        durationMs: Date.now() - startedAt,
+      },
+      { status: ok ? 200 : 500 },
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[analysis-cron] fatal error:', message)
