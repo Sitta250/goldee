@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AlertTriangle, ChevronRight } from 'lucide-react'
 
 import { buildMetadata }   from '@/lib/utils/metadata'
 import { Container }       from '@/components/layout/Container'
@@ -58,7 +59,7 @@ export default function AboutPage() {
                 'ผู้ที่ต้องการติดตามแนวโน้มราคาทองในระยะยาว',
               ].map((item) => (
                 <li key={item} className="flex gap-2">
-                  <span className="text-gold-400 shrink-0 mt-0.5">▸</span>
+                  <ChevronRight size={14} className="text-gold-400 shrink-0 mt-0.5" aria-hidden />
                   <span>{item}</span>
                 </li>
               ))}
@@ -199,7 +200,7 @@ export default function AboutPage() {
                 'ข้อมูลย้อนหลังเก็บตั้งแต่วันที่เว็บไซต์เริ่มให้บริการเท่านั้น',
               ].map((item) => (
                 <li key={item} className="flex gap-2">
-                  <span className="text-amber-500 shrink-0 mt-0.5">⚠</span>
+                  <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" aria-hidden />
                   <span>{item}</span>
                 </li>
               ))}

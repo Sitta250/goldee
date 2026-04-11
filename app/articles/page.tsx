@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 
 import { getPaginatedArticles } from '@/lib/queries/articles'
 import type { ArticleCategory } from '@/types/article'
@@ -56,7 +57,7 @@ function NoArticles({ filtered }: { filtered: boolean }) {
       </p>
       {filtered && (
         <Link href="/articles" className="text-sm text-gold-600 hover:underline">
-          ดูบทความทั้งหมด →
+          ดูบทความทั้งหมด <ArrowRight size={13} className="inline" aria-hidden />
         </Link>
       )}
     </div>
@@ -181,7 +182,7 @@ function ArticlesPagination({
 
       {page < totalPages ? (
         <Link href={href(page + 1)} className="px-3 py-1.5 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
-          ถัดไป →
+          ถัดไป <ArrowRight size={13} className="inline" aria-hidden />
         </Link>
       ) : (
         <span className="px-3 py-1.5 rounded-md text-sm text-gray-300 bg-gray-50">ถัดไป →</span>

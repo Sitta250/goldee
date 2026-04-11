@@ -38,7 +38,7 @@ export function PriceHero({ data, changeFromYesterday }: PriceHeroProps) {
         />
       </div>
 
-      {/* Source attribution */}
+      {/* Source attribution — always display the official name regardless of internal source code */}
       <p className="text-xs text-gray-400">
         อ้างอิงราคาจาก{' '}
         <a
@@ -47,17 +47,9 @@ export function PriceHero({ data, changeFromYesterday }: PriceHeroProps) {
           rel="noopener noreferrer"
           className="underline underline-offset-2 hover:text-gray-600 transition-colors"
         >
-          {snapshot.sourceName ?? 'สมาคมค้าทองคำ'}
+          สมาคมค้าทองคำ
         </a>
       </p>
-
-      {/* Change indicators — vs previous update and vs yesterday close */}
-      <div className="space-y-1.5">
-        <PriceChangeDisplay change={change} label={DELTA_LABELS.vsPrevious.th} />
-        {changeFromYesterday && (
-          <PriceChangeDisplay change={changeFromYesterday} label={DELTA_LABELS.vsYesterday.th} />
-        )}
-      </div>
 
       {/* Price cards grid */}
       <div className="space-y-3">
@@ -69,6 +61,14 @@ export function PriceHero({ data, changeFromYesterday }: PriceHeroProps) {
           <PriceCard label="ทองรูปพรรณ" sublabel="96.5%" value={snapshot.jewelryBuy}  type="buy"  />
           <PriceCard label="ทองรูปพรรณ" sublabel="96.5%" value={snapshot.jewelrySell} type="sell" />
         </div>
+      </div>
+
+      {/* Change indicators — vs previous left, vs yesterday pushed to far right */}
+      <div className="flex items-center justify-between gap-4">
+        <PriceChangeDisplay change={change} label={DELTA_LABELS.vsPrevious.th} />
+        {changeFromYesterday && (
+          <PriceChangeDisplay change={changeFromYesterday} label={DELTA_LABELS.vsYesterday.th} />
+        )}
       </div>
 
       <p className="text-xs text-gray-400">

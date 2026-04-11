@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AlertTriangle, ArrowRight } from 'lucide-react'
 import type { HistoryTableRow, HistoryTimeframe } from '@/lib/queries/history'
 import { formatPrice, formatDateTime } from '@/lib/utils/format'
 
@@ -140,7 +141,7 @@ export function HistoryTable({
                             colSpan={colSpan}
                             className="px-4 py-2 text-center text-xs text-amber-700 font-medium"
                           >
-                            ⚠ ข้อมูลขาดช่วง{' '}
+                            <AlertTriangle size={13} className="inline mr-1" aria-hidden />ข้อมูลขาดช่วง{' '}
                             {Math.round(
                               Math.abs(
                                 rows[i - 1].canonicalAt.getTime() - row.canonicalAt.getTime(),
@@ -291,11 +292,11 @@ function Pagination({
       {page < totalPages ? (
         <Link href={pageHref(page + 1)} scroll={false}
           className="px-3 py-1.5 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
-          ถัดไป →
+          ถัดไป <ArrowRight size={13} className="inline" aria-hidden />
         </Link>
       ) : (
         <span className="px-3 py-1.5 rounded-md text-sm text-gray-300 bg-gray-50 cursor-not-allowed">
-          ถัดไป →
+          ถัดไป <ArrowRight size={13} className="inline" aria-hidden />
         </span>
       )}
     </nav>

@@ -1,6 +1,13 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { NextConfig } from 'next'
 
+// When a parent directory has another lockfile, Next may infer the wrong workspace
+// root and break `next start` / API routes locally — pin tracing to this app.
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: projectRoot,
   images: {
     // ── Article cover images ──────────────────────────────────────────────────
     // Add the hostname of your image CDN or CMS here when articles have cover images.

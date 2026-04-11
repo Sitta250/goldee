@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { formatPriceTHB, formatPrice } from '@/lib/utils/format'
 import { calculateGoldValue } from '@/lib/utils/trend'
 
@@ -88,7 +89,7 @@ export function CalculatorPreview({ goldBarSell }: CalculatorPreviewProps) {
         href="/calculator"
         className="block text-center rounded-lg bg-gold-500 hover:bg-gold-600 text-white text-sm font-semibold py-3 transition-colors"
       >
-        คำนวณมูลค่าทองแบบละเอียด — เลือกประเภท น้ำหนัก และความบริสุทธิ์ →
+        คำนวณมูลค่าทองแบบละเอียด — เลือกประเภท น้ำหนัก และความบริสุทธิ์ <ArrowRight size={14} className="inline" aria-hidden />
       </Link>
 
     </div>

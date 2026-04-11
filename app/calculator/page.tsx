@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { TransactionType } from '@/types/gold'
+import { ChevronRight } from 'lucide-react'
 
 import { getLatestSnapshot }  from '@/lib/queries/prices'
 import { buildMetadata }      from '@/lib/utils/metadata'
@@ -101,14 +102,14 @@ export default async function CalculatorPage({
 
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex gap-2">
-                <span className="text-gold-500 shrink-0 mt-0.5">▸</span>
+                <ChevronRight size={14} className="text-gold-500 shrink-0 mt-0.5" aria-hidden />
                 <span>
                   <strong className="text-gray-800">1 บาทน้ำหนัก</strong>{' '}
                   เท่ากับ 15.244 กรัม — เป็นหน่วยมาตรฐานสำหรับทองในประเทศไทย
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="text-gold-500 shrink-0 mt-0.5">▸</span>
+                <ChevronRight size={14} className="text-gold-500 shrink-0 mt-0.5" aria-hidden />
                 <span>
                   <strong className="text-gray-800">ราคาอ้างอิง</strong>{' '}
                   ใช้ราคาทองคำแท่ง 96.5% จากสมาคมค้าทองคำ (YGTA) เป็นฐาน
@@ -116,7 +117,7 @@ export default async function CalculatorPage({
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="text-gold-500 shrink-0 mt-0.5">▸</span>
+                <ChevronRight size={14} className="text-gold-500 shrink-0 mt-0.5" aria-hidden />
                 <span>
                   <strong className="text-gray-800">ราคาซื้อ vs รับซื้อ</strong>{' '}
                   ราคาขาย (คุณซื้อทอง) สูงกว่าราคารับซื้อ (คุณขายทอง)
@@ -124,7 +125,7 @@ export default async function CalculatorPage({
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="text-gold-500 shrink-0 mt-0.5">▸</span>
+                <ChevronRight size={14} className="text-gold-500 shrink-0 mt-0.5" aria-hidden />
                 <span>
                   <strong className="text-gray-800">ค่ากำเหน็จ</strong>{' '}
                   ไม่ได้รวมอยู่ในการคำนวณ ทองรูปพรรณมีค่ากำเหน็จเพิ่มเติมประมาณ

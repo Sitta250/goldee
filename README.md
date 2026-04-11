@@ -217,6 +217,7 @@ Vercel → your project → **Settings → Environment Variables**:
 | `GOLD_API_URL` | `https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false` | YGTA endpoint |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-domain.vercel.app` | Used in sitemap and OG metadata |
 | `NEXT_PUBLIC_SITE_NAME` | `Goldee` | |
+| `GEMINI_API_KEY` | Google AI Studio key | Required for **Today Gold Analysis** (`/api/scheduler/analysis`); see Step 8 |
 
 Set all variables for **Production** environment. For **Preview** deployments, set `GOLD_PROVIDER=mock` to avoid sending real traffic from preview branches.
 
@@ -290,6 +291,54 @@ The workflow maps CHNWT payload fields to normalized ingest fields:
 - `asTime` from Thai `update_date + update_time` converted to ISO (UTC+7 aware)
 
 Reference mapper: `scripts/map-chnwt-to-ingest.js` and `lib/ingestion/providers/goldapi-mapping.ts`.
+
+### Step 8 — Gemini Today Gold Analysis (once daily)
+
+This is separate from the gold **price** polling in Step 7. The app fetches RSS news, calls Gemini, and stores rows in `GoldAnalysis`. It is triggered by **Vercel Cron** (primary) plus an optional **GitHub Actions** backup.
+
+#### Vercel Cron (source of truth in repo)
+
+[`vercel.json`](vercel.json) registers **one** daily schedule for `GET /api/scheduler/analysis`:
+
+| Schedule (UTC) | Role |
+|---|---|
+| `45 3 * * *` | Once daily (~10:45 ICT) |
+
+On **Vercel Hobby**, each cron expression may run **at most once per day** (sub-daily expressions fail deploy). Invocations may land anywhere **within the scheduled hour** on Hobby (less precise than Pro). See [Cron usage & pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+
+**Verify in production:** Vercel → your project → **Settings → Cron Jobs** — confirm the job is listed and not disabled. Open **View logs**; successful runs should return HTTP **200** and `[analysis-cron]` lines in function logs. **401** usually means `CRON_SECRET` mismatch or missing; **500** often means missing `GEMINI_API_KEY` or Gemini/RSS errors (check logs).
+
+**Required env vars:** `CRON_SECRET` (Vercel automatically sends `Authorization: Bearer` on cron invocations; your route must match this value) and `GEMINI_API_KEY`.
+
+#### Optional: GitHub Actions backup (recommended on Hobby)
+
+This repo includes [`.github/workflows/scheduler-analysis.yml`](.github/workflows/scheduler-analysis.yml). It `GET`s your production analysis URL a few minutes after Vercel’s 10:45 ICT run. Because `runGoldAnalysis` is idempotent on `inputHash`, most days this backup returns `status: "skipped"` — it only inserts a row if Vercel’s cron failed or was delayed.
+
+**Add GitHub Actions secrets** (same place as Step 7):
+
+- `ANALYSIS_CRON_URL` = `https://your-domain.com/api/scheduler/analysis` (full URL, no trailing slash issues)
+- `CRON_SECRET` = same value as Vercel `CRON_SECRET`
+
+Enable the workflow on your default branch and confirm runs under **Actions → Scheduler Analysis**.
+
+**Optional health check:** [`.github/workflows/analysis-daily-health.yml`](.github/workflows/analysis-daily-health.yml) runs `npm run check:analysis-day` and expects at least one `GoldAnalysis` row for the previous Bangkok calendar day. Add repo secret `DATABASE_URL` (pooled Neon URL is fine for this read-only count).
+
+#### Manual smoke test (any environment)
+
+```bash
+curl -sS -H "Authorization: Bearer <CRON_SECRET>" \
+  "https://your-domain.com/api/admin/run-analysis"
+```
+
+Use [`/api/admin/run-analysis`](app/api/admin/run-analysis/route.ts) for debugging (same pipeline as cron). Add `?force=1` to bypass idempotency when testing. Locally, set `GEMINI_API_KEY` and `CRON_SECRET` in `.env.local`.
+
+#### Cadence check (local or CI)
+
+```bash
+DATABASE_URL="<pooled-url>" npm run check:analysis-day
+```
+
+Exits with an error if yesterday (ICT) had no analysis rows — useful when verifying the daily run succeeded.
 
 ---
 

@@ -68,4 +68,20 @@ describe('isThaiGoldPollingWindow', () => {
     const d = new Date('2026-06-15T11:31:00.000Z')
     expect(isThaiGoldPollingWindow(d)).toBe(false)
   })
+
+  it('false on Saturday even during trading hours', () => {
+    vi.stubEnv('THAI_FETCH_START_HHMM', '09:00')
+    vi.stubEnv('THAI_FETCH_END_HHMM', '18:30')
+    // 2026-06-13 is Saturday; 02:00 UTC = 09:00 ICT (would be true on a weekday)
+    const d = new Date('2026-06-13T02:00:00.000Z')
+    expect(isThaiGoldPollingWindow(d)).toBe(false)
+  })
+
+  it('false on Sunday even during trading hours', () => {
+    vi.stubEnv('THAI_FETCH_START_HHMM', '09:00')
+    vi.stubEnv('THAI_FETCH_END_HHMM', '18:30')
+    // 2026-06-14 is Sunday; 05:00 UTC = 12:00 ICT (would be true on a weekday)
+    const d = new Date('2026-06-14T05:00:00.000Z')
+    expect(isThaiGoldPollingWindow(d)).toBe(false)
+  })
 })

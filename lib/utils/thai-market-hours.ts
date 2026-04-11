@@ -49,6 +49,18 @@ function getConfiguredWindow(): {
   }
 }
 
+/** Day of week in Asia/Bangkok for the given instant. 0 = Sun … 6 = Sat. */
+function getBangkokDayOfWeek(date: Date): number {
+  const str = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    weekday:  'short',
+  }).format(date)
+  const map: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  }
+  return map[str] ?? date.getDay()
+}
+
 /** Local hour and minute in Asia/Bangkok for the given instant. */
 export function getBangkokHourMinute(date: Date): { hour: number; minute: number } {
   const fmt = new Intl.DateTimeFormat('en-GB', {
@@ -71,6 +83,10 @@ export function getBangkokHourMinute(date: Date): { hour: number; minute: number
  * inclusive of both start and end clock times.
  */
 export function isThaiGoldPollingWindow(at: Date = new Date()): boolean {
+  // Thai gold market (YGTA) operates Mon–Fri only.
+  const dow = getBangkokDayOfWeek(at)
+  if (dow === 0 || dow === 6) return false
+
   const { startMin, endMin } = getConfiguredWindow()
   const { hour, minute }     = getBangkokHourMinute(at)
   const nowMin               = hour * 60 + minute

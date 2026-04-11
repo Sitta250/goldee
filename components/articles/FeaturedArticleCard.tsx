@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { ArrowRight } from 'lucide-react'
 import type { ArticleCardData } from '@/types/article'
 import { CategoryBadge } from '@/components/ui/Badge'
 import { formatDate } from '@/lib/utils/format'
@@ -57,7 +58,7 @@ export function FeaturedArticleCard({ article }: FeaturedArticleCardProps) {
           </p>
 
           <span className="inline-block mt-1 text-sm font-semibold text-gold-600 group-hover:underline">
-            อ่านบทความ →
+            อ่านบทความ <ArrowRight size={14} className="inline" aria-hidden />
           </span>
         </div>
       </Link>

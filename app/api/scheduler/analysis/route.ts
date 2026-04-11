@@ -2,7 +2,7 @@
  * GET /api/scheduler/analysis
  *
  * Cron-triggered endpoint for the Today Gold Analysis.
- * Primary: 09:30 and 18:00 ICT (02:30 and 11:00 UTC). Retries: +1h (see vercel.json).
+ * Runs once per day around 10:45 Asia/Bangkok (03:45 UTC).
  *
  * Auth: Authorization: Bearer <CRON_SECRET>
  */

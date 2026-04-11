@@ -33,6 +33,11 @@ const EXPERT_SOURCES: ExpertSource[] = [
     rssUrl:    'https://www.bullionvault.com/gold-news/rss.do',
     authority: 7,
   },
+  {
+    name:      'InterGold',
+    rssUrl:    'https://www.intergold.co.th/news_analysis/analysis/feed/',
+    authority: 7,
+  },
 ]
 
 export const EXPERT_SOURCE_NAMES = new Set(EXPERT_SOURCES.map((s) => s.name))

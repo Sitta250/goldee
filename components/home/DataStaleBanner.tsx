@@ -1,4 +1,4 @@
-import { formatThaiPollingWindowRangeTh } from '@/lib/utils/thai-market-hours'
+import { AlertTriangle, Clock } from 'lucide-react'
 
 /**
  * DataStaleBanner — during the Thai polling window, warns if `lastSeenAt` is
@@ -21,15 +21,15 @@ export function DataStaleBanner({
   lastSeenAt,
   isWithinPollingWindow,
 }: DataStaleBannerProps) {
+  // Outside trading hours — show market closed notice.
   if (!isWithinPollingWindow) {
     return (
       <div
         role="status"
-        className="rounded-card border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+        className="flex items-center gap-2 rounded-card border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500"
       >
-        <p>
-          อยู่นอกช่วงตรวจสอบราคา (ประมาณ {formatThaiPollingWindowRangeTh()}) — แสดงราคาล่าสุดจากตลาด
-        </p>
+        <Clock size={15} className="shrink-0" aria-hidden />
+        <p>ตลาดทองคำปิดทำการ — ราคาที่แสดงคือราคาประกาศล่าสุด <span className="text-gray-400">(เปิด จ–ศ 09:00–18:00 น.)</span></p>
       </div>
     )
   }
@@ -44,7 +44,7 @@ export function DataStaleBanner({
       role="status"
       className="flex items-center gap-2 rounded-card border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700"
     >
-      <span aria-hidden="true" className="shrink-0">⚠</span>
+      <AlertTriangle size={15} className="shrink-0" aria-hidden />
       <p>
         กำลังอัปเดตราคาล่าสุด — ข้อมูลย้อนหลัง {ageMin} นาที
       </p>

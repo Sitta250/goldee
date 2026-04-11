@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useId } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { formatPrice, formatPriceTHB, formatWeight } from '@/lib/utils/format'
 import { calculateGoldValue, gramsToBaht, bahtToGrams } from '@/lib/utils/trend'
 import type { WeightUnit, TransactionType } from '@/types/gold'
@@ -240,9 +241,12 @@ export function GoldCalculator({ goldBarBuy, goldBarSell, initialTxType }: GoldC
       </div>
 
       {/* ── 5. Disclaimer ─────────────────────────────────────────────────────── */}
-      <p className="text-xs text-gray-400 leading-relaxed">
-        ⚠️ มูลค่าที่แสดงเป็นค่าประมาณเท่านั้น ราคาจริงอาจต่างจากนี้ขึ้นอยู่กับร้านค้า
-        สภาพทอง และเวลาซื้อขาย ค่ากำเหน็จทองรูปพรรณไม่ได้รวมอยู่ในการคำนวณนี้
+      <p className="flex items-start gap-1.5 text-xs text-gray-400 leading-relaxed">
+        <AlertTriangle size={13} className="shrink-0 mt-0.5" aria-hidden />
+        <span>
+          มูลค่าที่แสดงเป็นค่าประมาณเท่านั้น ราคาจริงอาจต่างจากนี้ขึ้นอยู่กับร้านค้า
+          สภาพทอง และเวลาซื้อขาย ค่ากำเหน็จทองรูปพรรณไม่ได้รวมอยู่ในการคำนวณนี้
+        </span>
       </p>
     </div>
   )

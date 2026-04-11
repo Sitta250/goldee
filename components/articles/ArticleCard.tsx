@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { ArrowRight } from 'lucide-react'
 import type { ArticleCardData } from '@/types/article'
 import { formatDate } from '@/lib/utils/format'
 import { CategoryBadge } from '@/components/ui/Badge'
@@ -64,7 +65,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
           href={`/articles/${slug}`}
           className="inline-block mt-1 text-xs font-medium text-gold-600 hover:underline"
         >
-          อ่านต่อ →
+          อ่านต่อ <ArrowRight size={12} className="inline" aria-hidden />
         </Link>
       </div>
     </article>

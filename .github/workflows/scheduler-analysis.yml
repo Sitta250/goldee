@@ -1,13 +1,12 @@
 name: Scheduler Analysis
 
-# Backup + retry for Vercel crons (see vercel.json primary 02:30 / 11:00 UTC).
-# Stagger 5m after Vercel so the first success usually wins; retries 1h later catch missed/failed runs.
+# Backup trigger for Vercel cron (see vercel.json primary 03:45 UTC / ~10:45 ICT).
+# Most days this run will return status "skipped" because Vercel's cron already
+# ran and the inputHash is unchanged. This workflow is only a safety net if
+# Vercel's cron fails or is delayed.
 on:
   schedule:
-    - cron: "35 2 * * *"   # ~09:35 ICT — backup after Vercel 09:30
-    - cron: "5 11 * * *"   # ~18:05 ICT — backup after Vercel 18:00
-    - cron: "30 3 * * *"   # ~10:30 ICT — retry window (morning)
-    - cron: "0 12 * * *"   # ~19:00 ICT — retry window (evening)
+    - cron: "50 3 * * *"   # ~10:50 ICT — backup a few minutes after Vercel 10:45
   workflow_dispatch:
 
 jobs:

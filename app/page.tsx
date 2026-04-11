@@ -4,7 +4,6 @@ import {
   getLatestSnapshot,
   getPreviousSnapshot,
   getYesterdaySnapshot,
-  getLatestSummary,
 } from '@/lib/queries/prices'
 import { getLatestArticles }   from '@/lib/queries/articles'
 import { getPublishedFaqItems } from '@/lib/queries/faq'
@@ -18,11 +17,9 @@ import type { GoldPriceSnapshot, LatestPriceData } from '@/types/gold'
 import { Container }             from '@/components/layout/Container'
 import { PriceHero }             from '@/components/price/PriceHero'
 import { NoPriceData }           from '@/components/home/NoPriceData'
-import { DailySummaryCard }      from '@/components/home/DailySummaryCard'
 import { GoldAnalysisCard }      from '@/components/home/GoldAnalysisCard'
 import { ArticlesSectionHeader } from '@/components/home/ArticlesSectionHeader'
 import { FaqSection }            from '@/components/home/FaqSection'
-import { CalculatorPreview }     from '@/components/calculator/CalculatorPreview'
 import { ArticleGrid }           from '@/components/articles/ArticleGrid'
 import { AdSidebar }               from '@/components/ads/AdSidebar'
 import { Divider }                 from '@/components/ui/Divider'
@@ -44,7 +41,6 @@ export const metadata: Metadata = buildMetadata({
 export const revalidate = 300
 
 // ─── AI rationale teaser (Gemini / GoldAnalysis table) ────────────────────────
-// Not the same as DailySummaryCard below — that uses `dailySummary` (seed / separate data).
 // Rendered above the fold in its own Suspense so it doesn't block the hero.
 // Shows the analysis headline only — one line that answers "why is gold moving?".
 // getLatestAnalysis() is React-cached so this shares the DB hit with BelowFold.
@@ -71,12 +67,11 @@ async function RationaleTeaserStrip({
 }
 
 // ─── Below-fold async section ─────────────────────────────────────────────────
-// Fetches summary, analysis, articles, FAQ in parallel.
+// Fetches analysis, articles, FAQ in parallel.
 // Wrapped in <Suspense> so the hero, teaser, calculator, and chart stream first.
 
 async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null }) {
-  const [summary, rawAnalysis, articles, faqItems] = await Promise.all([
-    getLatestSummary(),
+  const [rawAnalysis, articles, faqItems] = await Promise.all([
     getLatestAnalysis(),
     getLatestArticles(3),
     getPublishedFaqItems(),
@@ -106,20 +101,6 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
 
       <Divider />
 
-      {/* Daily narrative + OHLC — `dailySummary` table; not produced by the Gemini analysis job */}
-      {summary && (
-        <>
-          <DailySummaryCard
-            summaryTh={summary.summaryTh}
-            highBarSell={summary.highBarSell}
-            lowBarSell={summary.lowBarSell}
-            openBarSell={summary.openBarSell}
-            closeBarSell={summary.closeBarSell}
-          />
-          <Divider />
-        </>
-      )}
-
       {/* FAQ — loaded from DB, falls back to empty state */}
       <FaqSection items={faqItems} />
     </>
@@ -131,9 +112,8 @@ async function BelowFold({ latestPrice }: { latestPrice: LatestPriceData | null 
 // Above-the-fold section order (designed for iPhone-sized viewport):
 //   1. PriceHero    — buy/sell prices, both change deltas, timestamps
 //   2. Rationale    — one-line AI headline ("why is gold moving?") in Suspense
-//   3. Calculator   — interactive quick-calc + prominent full-page CTA
-//   4. Chart        — TradingView price chart (large, intentionally below fold)
-//   5. BelowFold    — summary, full analysis, articles, FAQ
+//   3. Chart        — TradingView price chart (large, intentionally below fold)
+//   4. BelowFold    — full analysis, articles, FAQ
 
 export default async function HomePage() {
   const [latest, previous, yesterdaySnap] = await Promise.all([
@@ -186,15 +166,10 @@ export default async function HomePage() {
               </Suspense>
             )}
 
-            {/* 3. Calculator — interactive quick-calc above the chart */}
-            {latestPrice && (
-              <CalculatorPreview goldBarSell={latestPrice.snapshot.goldBarSell} />
-            )}
-
-            {/* 4. Price chart (below fold on mobile — users scroll after seeing price + calc) */}
+            {/* 4. Price chart (below fold on mobile — users scroll after seeing price) */}
             <TradingViewChart />
 
-            {/* 5. Below-fold: daily summary, full AI analysis, articles, FAQ */}
+            {/* 5. Below-fold: full AI analysis, articles, FAQ */}
             <div className="pt-4">
             <Suspense fallback={<BelowFoldSkeleton />}>
               <BelowFold latestPrice={latestPrice} />
