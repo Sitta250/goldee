@@ -6,11 +6,10 @@ import { useLanguage }  from '@/contexts/LanguageContext'
 import { UI, s }        from '@/lib/i18n/ui-strings'
 
 const NAV_ITEMS = [
-  { href: '/',            labelObj: UI.nav.home       },
-  { href: '/history',    labelObj: UI.nav.history    },
-  { href: '/calculator', labelObj: UI.nav.calculator },
-  { href: '/articles',   labelObj: UI.nav.articles   },
-  { href: '/about',      labelObj: UI.nav.about      },
+  { href: '/',         labelObj: UI.nav.home     },
+  { href: '/history',  labelObj: UI.nav.history  },
+  { href: '/articles', labelObj: UI.nav.articles },
+  { href: '/about',    labelObj: UI.nav.about    },
 ]
 
 export function NavLinks() {

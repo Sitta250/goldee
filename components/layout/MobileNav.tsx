@@ -5,11 +5,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
-  { href: '/',           label: 'หน้าแรก' },
-  { href: '/history',   label: 'ประวัติราคา' },
-  { href: '/calculator',label: 'คำนวณทอง' },
-  { href: '/articles',  label: 'บทความ' },
-  { href: '/about',     label: 'เกี่ยวกับ' },
+  { href: '/',         label: 'หน้าแรก' },
+  { href: '/history',  label: 'ประวัติราคา' },
+  { href: '/articles', label: 'บทความ' },
+  { href: '/about',    label: 'เกี่ยวกับ' },
 ]
 
 export function MobileNav() {
